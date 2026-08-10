@@ -59,6 +59,26 @@ export async function createMeeting(input: {
   return meeting;
 }
 
+/** Cree une note et la rattache a la fiche du contact via un noteTarget. */
+export async function createNoteOnPerson(input: {
+  personId: string;
+  title: string;
+  body: string;
+}): Promise<{ id: string } | null> {
+  if (!twenty.enabled) return null;
+  const note = await twenty.post<{ id: string }>('/notes', {
+    title: input.title,
+    bodyV2: { markdown: input.body },
+  });
+  try {
+    await twenty.post('/noteTargets', { noteId: note.id, personId: input.personId });
+  } catch (err) {
+    log('twenty', `noteTarget non cree pour ${note.id}`, err);
+  }
+  log('twenty', `Note creee ${note.id}`);
+  return note;
+}
+
 /** Cree une tache de suivi et la rattache au contact via un taskTarget. */
 export async function createFollowUpTask(input: {
   title: string;

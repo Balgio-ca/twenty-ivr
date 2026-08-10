@@ -26,44 +26,58 @@ export interface ToolSession {
   callOutcome?: string;
 }
 
-/** Numero vers lequel router selon le statut client. */
-function routeTo(session: ToolSession): string {
-  return session.existingClient ? config.business.transferExisting : config.business.transferNew;
+/** Numero vers lequel router selon le statut client (confirme par l'appelant). */
+function routeTo(existing: boolean): string {
+  return existing ? config.business.transferExisting : config.business.transferNew;
 }
 
-const CALLER_FIELDS = {
-  prenom: { type: 'string', description: "Prenom de l'appelant." },
-  nom: { type: 'string', description: "Nom de famille de l'appelant." },
-  entreprise: { type: 'string', description: "Nom de l'entreprise de l'appelant, si applicable." },
-  raison: { type: 'string', description: "Raison de l'appel, en quelques mots." },
-} as const;
+function clientFlag(args: Record<string, unknown>, session: ToolSession): boolean {
+  if (typeof args.client_existant === 'boolean') return args.client_existant;
+  return session.existingClient;
+}
+
+function label(nom: string, entreprise: string): string {
+  const n = nom.trim() || 'Appelant';
+  return entreprise.trim() ? `${n} (${entreprise.trim()})` : n;
+}
 
 export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'transferer_appel',
     description:
-      "Transfere l'appel a la bonne personne de l'equipe (pendant les heures d'ouverture). Un client existant est achemine a Mathieu, un nouveau contact a Alexandre. Recueille d'abord le prenom, le nom, l'entreprise et la raison de l'appel, dis une courte phrase de mise en relation, puis appelle cet outil. Il envoie aussi une alerte SMS a la personne concernee.",
+      "Transfere l'appel a la bonne personne (pendant les heures d'ouverture). Un client existant va a Mathieu, un nouveau contact a Alexandre. Avant d'appeler cet outil, demande simplement si la personne est deja cliente et la raison de l'appel. Dis une courte phrase de mise en relation, puis appelle l'outil. Il envoie une alerte SMS a la personne concernee.",
     input_schema: {
       type: 'object',
-      properties: { ...CALLER_FIELDS },
-      required: ['prenom', 'nom', 'raison'],
+      properties: {
+        client_existant: {
+          type: 'boolean',
+          description: "Vrai si l'appelant confirme etre deja client de Balgio.",
+        },
+        raison: { type: 'string', description: "Raison de l'appel, en quelques mots." },
+        nom: { type: 'string', description: "Nom de l'appelant tel qu'entendu (facultatif)." },
+        entreprise: { type: 'string', description: "Entreprise de l'appelant (facultatif)." },
+      },
+      required: ['client_existant', 'raison'],
     },
   },
   {
     name: 'prendre_message',
     description:
-      "Enregistre un message, l'envoie par courriel a l'equipe et alerte la personne concernee par SMS. A utiliser hors des heures d'ouverture, ou quand l'appelant prefere laisser un message. Recueille d'abord le prenom, le nom, l'entreprise, la raison et un numero de rappel.",
+      "Enregistre un message, l'envoie par courriel et alerte l'equipe par SMS. A utiliser hors des heures d'ouverture, ou si l'appelant prefere laisser un message. Demande la raison et un numero de rappel; le nom et l'entreprise sont facultatifs.",
     input_schema: {
       type: 'object',
       properties: {
-        ...CALLER_FIELDS,
+        raison: { type: 'string', description: "Raison de l'appel." },
         numero_rappel: {
           type: 'string',
           description: 'Numero de rappel. Laisse vide pour utiliser le numero affiche.',
         },
-        message: { type: 'string', description: 'Details du message a transmettre.' },
+        nom: { type: 'string', description: "Nom de l'appelant (facultatif)." },
+        entreprise: { type: 'string', description: "Entreprise (facultatif)." },
+        client_existant: { type: 'boolean', description: 'Vrai si deja client (si connu).' },
+        message: { type: 'string', description: 'Details additionnels (facultatif).' },
       },
-      required: ['prenom', 'nom', 'raison'],
+      required: ['raison'],
     },
   },
   {
@@ -93,21 +107,17 @@ const DISPOSITION_TO_OUTCOME: Record<string, string> = {
   ne_pas_rappeler: 'NE_PAS_APPELER',
 };
 
-function callerLabel(prenom: string, nom: string, entreprise: string): string {
-  const nomComplet = [prenom, nom].filter(Boolean).join(' ').trim() || 'Appelant';
-  return entreprise ? `${nomComplet} (${entreprise})` : nomComplet;
-}
-
 async function handleTransfer(
   args: Record<string, unknown>,
   session: ToolSession,
 ): Promise<ToolOutcome> {
-  const prenom = String(args.prenom ?? '').trim();
+  const raison = String(args.raison ?? '').trim();
   const nom = String(args.nom ?? '').trim();
   const entreprise = String(args.entreprise ?? '').trim();
-  const raison = String(args.raison ?? '').trim();
+  const existing = clientFlag(args, session);
+  session.existingClient = existing;
 
-  const target = routeTo(session);
+  const target = routeTo(existing);
   if (!isBusinessOpen() || !target) {
     return {
       result:
@@ -115,14 +125,16 @@ async function handleTransfer(
     };
   }
 
-  const person = await ensurePerson(session.phoneE164, `${prenom} ${nom}`.trim());
-  if (person) session.personId = person.id;
+  if (nom) {
+    const person = await ensurePerson(session.phoneE164, nom);
+    if (person) session.personId = person.id;
+  }
 
-  const statut = session.existingClient ? 'Client existant' : 'Nouveau contact';
-  const sms = `Appel Balgio - ${callerLabel(prenom, nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Transfert en cours.`;
+  const statut = existing ? 'Client existant' : 'Nouveau contact';
+  const sms = `Appel Balgio - ${label(nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Transfert en cours.`;
   await sendSms(target, sms);
 
-  session.callSummary = `Transfert (${statut}) vers ${target}. ${callerLabel(prenom, nom, entreprise)}. Raison: ${raison}.`;
+  session.callSummary = `Transfert (${statut}) vers ${target}. ${label(nom, entreprise)}. Raison: ${raison}.`;
   session.callOutcome = 'CONNECTED';
 
   return {
@@ -135,22 +147,24 @@ async function handlePrendreMessage(
   args: Record<string, unknown>,
   session: ToolSession,
 ): Promise<ToolOutcome> {
-  const prenom = String(args.prenom ?? '').trim();
+  const raison = String(args.raison ?? '').trim();
   const nom = String(args.nom ?? '').trim();
   const entreprise = String(args.entreprise ?? '').trim();
-  const raison = String(args.raison ?? '').trim();
   const numero = String(args.numero_rappel ?? '').trim() || session.phoneE164;
   const message = String(args.message ?? '').trim() || raison;
+  const existing = clientFlag(args, session);
   const afterHours = !isBusinessOpen();
 
-  const person = await ensurePerson(numero, `${prenom} ${nom}`.trim());
-  if (person) session.personId = person.id;
+  if (nom) {
+    const person = await ensurePerson(numero, nom);
+    if (person) session.personId = person.id;
+  }
 
-  const statut = session.existingClient ? 'Client existant' : 'Nouveau contact';
+  const statut = existing ? 'Client existant' : 'Nouveau contact';
   const body = [
     `Message telephonique pris par ${config.business.assistant}.`,
     ``,
-    `Appelant: ${callerLabel(prenom, nom, entreprise)}`,
+    `Appelant: ${label(nom, entreprise)}`,
     `Statut: ${statut}`,
     `Numero de rappel: ${numero}`,
     `Raison: ${raison || 'non precisee'}`,
@@ -159,15 +173,15 @@ async function handlePrendreMessage(
   ].join('\n');
 
   await createFollowUpTask({
-    title: `Message de ${callerLabel(prenom, nom, entreprise)} - ${raison || 'appel'}`,
+    title: `Message de ${label(nom, entreprise)} - ${raison || 'appel'}`,
     body,
-    personId: person?.id,
+    personId: session.personId,
   });
 
   let emailed = false;
   try {
     emailed = await sendMessageEmail({
-      nom: callerLabel(prenom, nom, entreprise),
+      nom: label(nom, entreprise),
       numeroRappel: numero,
       sujet: raison,
       message,
@@ -177,10 +191,10 @@ async function handlePrendreMessage(
     error('tools', 'Envoi du courriel echoue', err);
   }
 
-  const sms = `Message Balgio - ${callerLabel(prenom, nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Rappeler au ${numero}.`;
-  await sendSms(routeTo(session), sms);
+  const sms = `Message Balgio - ${label(nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Rappeler au ${numero}.`;
+  await sendSms(routeTo(existing), sms);
 
-  session.callSummary = `Message (${statut}). ${callerLabel(prenom, nom, entreprise)}. Raison: ${raison}. Rappel: ${numero}.`;
+  session.callSummary = `Message (${statut}). ${label(nom, entreprise)}. Raison: ${raison}. Rappel: ${numero}.`;
   session.callOutcome = 'CONNECTED';
 
   const suffix = emailed ? ' Le message a ete envoye par courriel.' : ' Le message est enregistre dans le CRM.';
@@ -216,7 +230,7 @@ export async function dispatchTool(
     }
   } catch (err) {
     error('tools', `Echec de l'outil ${name}`, err);
-    log('tools', 'Degradation gracieuse: le modele en est informe.');
+    log('tools', 'Degradation gracieuse.');
     return {
       result:
         "Le systeme est momentanement indisponible. Continue quand meme: prends l'information a l'oral et rassure l'appelant.",

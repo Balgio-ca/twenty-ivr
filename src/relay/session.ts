@@ -6,7 +6,7 @@ import { anthropic } from '../llm/agent.js';
 import { buildSystemPrompt } from '../llm/prompt.js';
 import { TOOLS, dispatchTool, type ToolControl, type ToolSession } from '../llm/tools.js';
 import { companyName, findPersonByPhone, fullName, isActiveClient } from '../twenty/people.js';
-import { logCall } from '../twenty/records.js';
+import { createNoteOnPerson, logCall } from '../twenty/records.js';
 import { humanAvailable } from '../util/hours.js';
 import { error, log, warn } from '../util/logger.js';
 import type { InboundMessage, OutboundMessage } from './protocol.js';
@@ -34,6 +34,7 @@ export class RelaySession {
   private logged = false;
   private closed = false;
   private busy = false;
+  private personExisted = false;
 
   private readonly toolSession: ToolSession;
 
@@ -93,6 +94,7 @@ export class RelaySession {
     try {
       const person = await findPersonByPhone(from);
       if (person) {
+        this.personExisted = true;
         this.toolSession.personId = person.id;
         this.toolSession.existingClient = isActiveClient(person);
         this.toolSession.companyName = companyName(person) || undefined;
@@ -268,6 +270,32 @@ export class RelaySession {
       });
     } catch (err) {
       error('relay', 'Journalisation de l appel impossible', err);
+    }
+
+    // Note dans la fiche du contact (utile quand un lead demarche rappelle).
+    if (this.toolSession.personId) {
+      const statut = this.toolSession.existingClient ? 'Client actif' : 'Contact / lead';
+      const contexte = this.personExisted
+        ? 'Retour d appel (fiche deja au CRM)'
+        : 'Nouveau contact cree lors de l appel';
+      const body = [
+        `Appel entrant recu par ${config.business.assistant}.`,
+        `Statut: ${statut}. ${contexte}.`,
+        `Duree: ${Math.round(durationSeconds)} s.`,
+        this.toolSession.callSummary ? `Resume: ${this.toolSession.callSummary}` : '',
+        this.toolSession.callOutcome ? `Issue: ${this.toolSession.callOutcome}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+      try {
+        await createNoteOnPerson({
+          personId: this.toolSession.personId,
+          title: `Appel entrant - ${config.business.assistant}`,
+          body,
+        });
+      } catch (err) {
+        error('relay', 'Note sur la fiche impossible', err);
+      }
     }
   }
 
