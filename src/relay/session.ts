@@ -221,6 +221,8 @@ export class RelaySession {
 
         let assistantText = '';
         let final: Anthropic.Message;
+        const t0 = Date.now();
+        let firstTokenAt = 0;
         try {
           const stream = anthropic.messages.stream(
             {
@@ -234,10 +236,15 @@ export class RelaySession {
           );
           stream.on('text', (delta) => {
             if (ac.signal.aborted || this.closed) return;
+            if (firstTokenAt === 0) {
+              firstTokenAt = Date.now();
+              log('perf', `1er token: ${firstTokenAt - t0}ms`);
+            }
             assistantText += delta;
             this.send({ type: 'text', token: delta, last: false });
           });
           final = await stream.finalMessage();
+          log('perf', `tour LLM: ${Date.now() - t0}ms (${final.stop_reason})`);
         } catch (err) {
           if (ac.signal.aborted) {
             log('relay', 'Generation interrompue');
@@ -275,11 +282,13 @@ export class RelaySession {
         const results: Anthropic.ToolResultBlockParam[] = [];
         let control: ToolControl | undefined;
         for (const tu of toolUses) {
+          const tt = Date.now();
           const outcome = await dispatchTool(
             tu.name,
             (tu.input ?? {}) as Record<string, unknown>,
             this.toolSession,
           );
+          log('perf', `outil ${tu.name}: ${Date.now() - tt}ms`);
           results.push({ type: 'tool_result', tool_use_id: tu.id, content: outcome.result });
           if (outcome.control && !control) control = outcome.control;
         }
@@ -308,7 +317,6 @@ export class RelaySession {
 
   private async executeControl(control: Exclude<ToolControl, { kind: 'language' }>): Promise<void> {
     this.clearIdle();
-    await this.logCallOnce();
     const handoff =
       control.kind === 'transfer'
         ? {
@@ -319,8 +327,11 @@ export class RelaySession {
             caller: control.caller,
           }
         : { action: 'hangup', reason: control.reason };
+    // On envoie 'end' tout de suite (transfert/raccrochage snappy); la
+    // journalisation CRM se fait en arriere-plan pour ne pas creer de temps mort.
     this.send({ type: 'end', handoffData: JSON.stringify(handoff) });
     log('relay', `Fin de session: ${control.kind}`);
+    void this.logCallOnce();
   }
 
   private finishSpeaking(): void {
