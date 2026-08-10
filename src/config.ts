@@ -21,6 +21,25 @@ export const config = {
     assistant: opt('ASSISTANT_NAME', 'Gio'),
     timezone: opt('BUSINESS_TIMEZONE', 'America/Toronto'),
     transferNumber: opt('HUMAN_TRANSFER_NUMBER'),
+    mainPhone: opt('BUSINESS_MAIN_PHONE', '514-447-5205'),
+    hours: {
+      openHour: Number(opt('BUSINESS_OPEN_HOUR', '8')),
+      closeHour: Number(opt('BUSINESS_CLOSE_HOUR', '17')),
+      // Jours ouvrables (abreviations anglaises comme retournees par Intl).
+      days: opt('BUSINESS_DAYS', 'Mon,Tue,Wed,Thu,Fri')
+        .split(',')
+        .map((d) => d.trim()),
+    },
+  },
+
+  email: {
+    smtpHost: opt('SMTP_HOST'),
+    smtpPort: Number(opt('SMTP_PORT', '587')),
+    smtpUser: opt('SMTP_USER'),
+    smtpPass: opt('SMTP_PASS'),
+    smtpSecure: bool('SMTP_SECURE', false),
+    from: opt('EMAIL_FROM'),
+    to: opt('MESSAGE_EMAIL_TO', 'mgiosi@balgio.ca'),
   },
 
   anthropic: {

@@ -7,6 +7,7 @@ import { buildSystemPrompt } from '../llm/prompt.js';
 import { TOOLS, dispatchTool, type ToolControl, type ToolSession } from '../llm/tools.js';
 import { findPersonByPhone, fullName } from '../twenty/people.js';
 import { logCall } from '../twenty/records.js';
+import { humanAvailable } from '../util/hours.js';
 import { error, log, warn } from '../util/logger.js';
 import type { InboundMessage, OutboundMessage } from './protocol.js';
 
@@ -101,7 +102,7 @@ export class RelaySession {
     this.system = buildSystemPrompt({
       knownName: this.knownName || undefined,
       phoneE164: from,
-      canTransfer: Boolean(config.business.transferNumber),
+      humanAvailable: humanAvailable(),
     });
     this.resolveSetup();
   }
