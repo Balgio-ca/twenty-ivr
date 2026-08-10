@@ -41,6 +41,8 @@ export class RelaySession {
   private logged = false;
   private closed = false;
   private busy = false;
+  private pendingText: string | null = null;
+  private draining = false;
   private personExisted = false;
   private dtmfBuffer = '';
   private mode: 'message' | undefined;
@@ -153,14 +155,28 @@ export class RelaySession {
     this.idleStrikes = 0;
     await this.setupDone;
     if (this.closed) return;
-    if (this.busy) {
-      // Un tour est deja en cours; on annule l'ancien avant d'enchainer.
-      this.currentAbort?.abort();
-    }
     log('relay', `appelant: ${text.slice(0, 90)}`);
-    this.transcript.push({ role: 'user', text });
-    this.messages.push({ role: 'user', content: text });
-    await this.runAgent();
+
+    // Barge-in: on coupe la parole en cours de Gio.
+    this.currentAbort?.abort();
+    // Un seul tour a la fois: on met en attente, la boucle traitera le message.
+    // Sans ca, un 2e appel a Claude peut partir avant que le tool_result du
+    // tour precedent soit ecrit -> erreur "tool_use sans tool_result".
+    this.pendingText = this.pendingText ? `${this.pendingText} ${text}` : text;
+    if (this.draining) return;
+
+    this.draining = true;
+    try {
+      while (this.pendingText !== null && !this.closed) {
+        const next = this.pendingText;
+        this.pendingText = null;
+        this.transcript.push({ role: 'user', text: next });
+        this.messages.push({ role: 'user', content: next });
+        await this.runAgent();
+      }
+    } finally {
+      this.draining = false;
+    }
   }
 
   private onInterrupt(): void {
@@ -233,6 +249,7 @@ export class RelaySession {
             token: 'Désolé, un petit problème technique. Pouvez-vous répéter ?',
             last: true,
           });
+          this.armIdle();
           return;
         } finally {
           this.currentAbort = undefined;

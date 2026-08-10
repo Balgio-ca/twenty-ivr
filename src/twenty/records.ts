@@ -71,7 +71,7 @@ export async function createNoteOnPerson(input: {
     bodyV2: { markdown: input.body },
   });
   try {
-    await twenty.post('/noteTargets', { noteId: note.id, personId: input.personId });
+    await twenty.post('/noteTargets', { noteId: note.id, targetPersonId: input.personId });
   } catch (err) {
     log('twenty', `noteTarget non cree pour ${note.id}`, err);
   }
@@ -95,7 +95,7 @@ export async function createFollowUpTask(input: {
   });
   if (input.personId) {
     try {
-      await twenty.post('/taskTargets', { taskId: task.id, personId: input.personId });
+      await twenty.post('/taskTargets', { taskId: task.id, targetPersonId: input.personId });
     } catch (err) {
       log('twenty', `taskTarget non cree pour ${task.id}`, err);
     }
