@@ -14,6 +14,10 @@ function getTransporter(): nodemailer.Transporter | null {
       auth: config.email.smtpUser
         ? { user: config.email.smtpUser, pass: config.email.smtpPass }
         : undefined,
+      // Timeouts pour ne jamais bloquer un appel si le SMTP ne repond pas.
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000,
     });
   }
   return transporter;
@@ -51,7 +55,12 @@ export async function sendMessageEmail(input: MessageEmail): Promise<boolean> {
     input.message,
   ].join('\n');
 
-  await tx.sendMail({ from, to: config.email.to, subject, text });
-  log('email', `Message envoye a ${config.email.to}`);
-  return true;
+  try {
+    await tx.sendMail({ from, to: config.email.to, subject, text });
+    log('email', `Message envoye a ${config.email.to}`);
+    return true;
+  } catch (err) {
+    warn('email', 'Echec envoi courriel', err);
+    return false;
+  }
 }

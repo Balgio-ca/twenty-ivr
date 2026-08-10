@@ -21,6 +21,7 @@ export async function sendSms(to: string, body: string): Promise<boolean> {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({ To: to, From: fromNumber, Body: body }).toString(),
+        signal: AbortSignal.timeout(8000),
       },
     );
     if (!res.ok) {

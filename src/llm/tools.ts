@@ -162,7 +162,7 @@ async function handleTransfer(
 
   const statut = existing ? 'Client existant' : 'Nouveau contact';
   const sms = `Appel Balgio - ${label(nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Transfert en cours.`;
-  await sendSms(target, sms);
+  void sendSms(target, sms); // arriere-plan: ne pas retarder le transfert
 
   session.callSummary = `Transfert (${statut}) vers ${target}. ${label(nom, entreprise)}. Raison: ${raison}.`;
   session.callOutcome = 'CONNECTED';
@@ -202,33 +202,30 @@ async function handlePrendreMessage(
     message,
   ].join('\n');
 
-  await createFollowUpTask({
+  // Ecriture CRM et alertes en arriere-plan: ne bloquent jamais la fin d'appel.
+  const target = routeTo(session, existing);
+  const sms = `Message Balgio - ${label(nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Rappeler au ${numero}.`;
+  void createFollowUpTask({
     title: `Message de ${label(nom, entreprise)} - ${raison || 'appel'}`,
     body,
     personId: session.personId,
   });
-
-  let emailed = false;
-  try {
-    emailed = await sendMessageEmail({
-      nom: label(nom, entreprise),
-      numeroRappel: numero,
-      sujet: raison,
-      message,
-      afterHours,
-    });
-  } catch (err) {
-    error('tools', 'Envoi du courriel echoue', err);
-  }
-
-  const sms = `Message Balgio - ${label(nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Rappeler au ${numero}.`;
-  await sendSms(routeTo(session, existing), sms);
+  void sendSms(target, sms);
+  void sendMessageEmail({
+    nom: label(nom, entreprise),
+    numeroRappel: numero,
+    sujet: raison,
+    message,
+    afterHours,
+  });
 
   session.callSummary = `Message (${statut}). ${label(nom, entreprise)}. Raison: ${raison}. Rappel: ${numero}.`;
   session.callOutcome = 'CONNECTED';
 
-  const suffix = emailed ? ' Le message a ete envoye par courriel.' : ' Le message est enregistre dans le CRM.';
-  return { result: `Message enregistre.${suffix} L'equipe a ete alertee.` };
+  return {
+    result:
+      "Message enregistre, l'equipe est alertee par SMS et courriel. Confirme brievement en une phrase, puis termine l'appel avec terminer_appel.",
+  };
 }
 
 function handleTerminer(args: Record<string, unknown>, session: ToolSession): ToolOutcome {

@@ -30,6 +30,7 @@ export class TwentyClient {
         'Content-Type': 'application/json',
       },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(8000),
     });
     const text = await res.text();
     let json: unknown = {};
