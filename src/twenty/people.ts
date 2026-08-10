@@ -8,7 +8,32 @@ export type Person = {
   name?: { firstName?: string; lastName?: string };
   phones?: { primaryPhoneNumber?: string };
   emails?: { primaryEmail?: string };
+  company?: {
+    id?: string;
+    name?: string;
+    clientStatus?: string;
+    lastInvoiceDate?: string | null;
+    lifetimeValue?: { amountMicros?: number | null };
+  };
 };
+
+export function companyName(p?: Person | null): string {
+  return p?.company?.name ?? '';
+}
+
+/**
+ * Client actif = a deja eu des factures. On se fie a la societe reliee:
+ * une date de derniere facture, une valeur a vie > 0, ou un statut ACTIVE.
+ * Une simple fiche au CRM sans facture ne compte pas.
+ */
+export function isActiveClient(p?: Person | null): boolean {
+  const c = p?.company;
+  if (!c) return false;
+  if (c.clientStatus === 'ACTIVE') return true;
+  if (c.lastInvoiceDate) return true;
+  if ((c.lifetimeValue?.amountMicros ?? 0) > 0) return true;
+  return false;
+}
 
 export function fullName(p?: Person | null): string {
   if (!p?.name) return '';
@@ -21,7 +46,8 @@ export async function findPersonByPhone(rawPhone: string): Promise<Person | null
   const { national } = splitPhone(rawPhone, config.twenty.defaultCountry);
   if (!national) return null;
   const filter = encodeURIComponent(`phones.primaryPhoneNumber[eq]:${national}`);
-  const path = `/people?filter=${filter}&limit=1&depth=0`;
+  // depth=1 pour recuperer la societe reliee (nom de l'entreprise).
+  const path = `/people?filter=${filter}&limit=1&depth=1`;
   const people = await twenty.getList<Person>(path);
   return people[0] ?? null;
 }

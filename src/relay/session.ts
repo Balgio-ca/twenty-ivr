@@ -5,7 +5,7 @@ import { config } from '../config.js';
 import { anthropic } from '../llm/agent.js';
 import { buildSystemPrompt } from '../llm/prompt.js';
 import { TOOLS, dispatchTool, type ToolControl, type ToolSession } from '../llm/tools.js';
-import { findPersonByPhone, fullName } from '../twenty/people.js';
+import { companyName, findPersonByPhone, fullName, isActiveClient } from '../twenty/people.js';
 import { logCall } from '../twenty/records.js';
 import { humanAvailable } from '../util/hours.js';
 import { error, log, warn } from '../util/logger.js';
@@ -45,6 +45,8 @@ export class RelaySession {
     this.toolSession = {
       phoneE164: '',
       personId: undefined,
+      existingClient: false,
+      companyName: undefined,
       callSummary: undefined,
       callOutcome: undefined,
     };
@@ -92,8 +94,13 @@ export class RelaySession {
       const person = await findPersonByPhone(from);
       if (person) {
         this.toolSession.personId = person.id;
+        this.toolSession.existingClient = isActiveClient(person);
+        this.toolSession.companyName = companyName(person) || undefined;
         this.knownName = fullName(person);
-        log('relay', `Contact reconnu: ${this.knownName || person.id}`);
+        log(
+          'relay',
+          `Contact reconnu: ${this.knownName || person.id} (${this.toolSession.existingClient ? 'client actif' : 'non-client'})`,
+        );
       }
     } catch (err) {
       warn('relay', 'Recherche du contact impossible', err);
@@ -101,6 +108,8 @@ export class RelaySession {
 
     this.system = buildSystemPrompt({
       knownName: this.knownName || undefined,
+      companyName: this.toolSession.companyName,
+      existingClient: this.toolSession.existingClient,
       phoneE164: from,
       humanAvailable: humanAvailable(),
     });

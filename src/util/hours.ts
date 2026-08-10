@@ -22,9 +22,10 @@ export function isBusinessOpen(): boolean {
   return isWorkday && hour >= openHour && hour < closeHour;
 }
 
-/** Vrai si un humain peut prendre l'appel (heures d'ouverture + numero configure). */
+/** Vrai si un humain peut prendre l'appel (heures d'ouverture + au moins un numero). */
 export function humanAvailable(): boolean {
-  return isBusinessOpen() && Boolean(config.business.transferNumber);
+  const { transferExisting, transferNew } = config.business;
+  return isBusinessOpen() && Boolean(transferExisting || transferNew);
 }
 
 /** Description en francais des heures d'ouverture, pour le prompt. */

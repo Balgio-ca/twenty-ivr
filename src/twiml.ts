@@ -18,7 +18,7 @@ function attr(name: string, value: string | boolean | undefined): string {
 /** Message d'accueil parle automatiquement par ConversationRelay. */
 export function welcomeGreeting(): string {
   const { name, assistant } = config.business;
-  return `Bonjour et bienvenue chez ${name}. Je suis ${assistant}, l'assistant virtuel de l'agence. Comment puis-je vous aider aujourd'hui?`;
+  return `Bonjour, ici ${assistant}, l'assistant virtuel de ${name}. Aimeriez-vous parler a un membre de l'equipe?`;
 }
 
 /** TwiML qui connecte l'appel au websocket ConversationRelay. */

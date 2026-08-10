@@ -20,7 +20,9 @@ export const config = {
     name: opt('BUSINESS_NAME', 'Balgio'),
     assistant: opt('ASSISTANT_NAME', 'Gio'),
     timezone: opt('BUSINESS_TIMEZONE', 'America/Toronto'),
-    transferNumber: opt('HUMAN_TRANSFER_NUMBER'),
+    // Routage par statut client. Existant -> Mathieu; nouveau -> Alexandre.
+    transferExisting: opt('TRANSFER_EXISTING_CLIENT') || opt('HUMAN_TRANSFER_NUMBER') || '+14389288488',
+    transferNew: opt('TRANSFER_NEW_CLIENT', '+15145716742'),
     mainPhone: opt('BUSINESS_MAIN_PHONE', '514-447-5205'),
     hours: {
       openHour: Number(opt('BUSINESS_OPEN_HOUR', '8')),
@@ -45,7 +47,8 @@ export const config = {
   anthropic: {
     apiKey: opt('ANTHROPIC_API_KEY'),
     model: opt('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
-    maxTokens: Number(opt('ANTHROPIC_MAX_TOKENS', '1024')),
+    // Reponses courtes pour rester conversationnel (voix).
+    maxTokens: Number(opt('ANTHROPIC_MAX_TOKENS', '300')),
   },
 
   twenty: {
@@ -55,7 +58,9 @@ export const config = {
   },
 
   twilio: {
+    accountSid: opt('TWILIO_ACCOUNT_SID'),
     authToken: opt('TWILIO_AUTH_TOKEN'),
+    fromNumber: opt('TWILIO_NUMBER'),
     validateSignature: bool('VALIDATE_TWILIO_SIGNATURE', true),
   },
 

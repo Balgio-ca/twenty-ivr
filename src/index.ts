@@ -99,7 +99,9 @@ wss.on('connection', (ws) => {
 function checkConfig(): void {
   if (!config.anthropic.apiKey) warn('config', 'ANTHROPIC_API_KEY manquant: Claude ne repondra pas.');
   if (!config.twenty.apiKey) warn('config', 'TWENTY_API_KEY manquant: rien ne sera ecrit dans le CRM.');
-  if (!config.business.transferNumber) warn('config', 'HUMAN_TRANSFER_NUMBER manquant: transferts desactives.');
+  if (!config.business.transferExisting && !config.business.transferNew)
+    warn('config', 'Aucun numero de transfert configure: transferts desactives.');
+  if (!config.twilio.accountSid) warn('config', 'TWILIO_ACCOUNT_SID manquant: SMS desactives.');
 }
 
 server.listen(config.port, () => {
