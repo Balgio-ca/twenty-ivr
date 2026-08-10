@@ -5,7 +5,14 @@ import twilio from 'twilio';
 
 import { config } from './config.js';
 import { RelaySession } from './relay/session.js';
-import { connectTwiml, hangupTwiml, messageGreeting, transferTwiml } from './twiml.js';
+import {
+  acceptTwiml,
+  connectTwiml,
+  hangupTwiml,
+  messageGreeting,
+  transferTwiml,
+  whisperTwiml,
+} from './twiml.js';
 import { error, log, warn } from './util/logger.js';
 
 const app = express();
@@ -31,6 +38,20 @@ function twilioSignatureValid(req: Request): boolean {
   return ok;
 }
 
+// Transferts filtres acceptes (cle: CallSid de l'appelant). La personne a
+// appuye sur 1 pour prendre l'appel; sinon on renvoie l'appelant vers Gio.
+const acceptedTransfers = new Map<string, number>();
+function markTransferAccepted(callSid: string): void {
+  acceptedTransfers.set(callSid, Date.now() + 5 * 60_000);
+}
+function consumeTransferAccepted(callSid: string): boolean {
+  const exp = acceptedTransfers.get(callSid);
+  acceptedTransfers.delete(callSid);
+  const now = Date.now();
+  for (const [k, v] of acceptedTransfers) if (v < now) acceptedTransfers.delete(k);
+  return exp !== undefined && exp > now;
+}
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'twenty-ivr', crm: Boolean(config.twenty.apiKey) });
 });
@@ -54,7 +75,7 @@ app.post('/twiml/action', (req, res) => {
     res.status(403).type('text/xml').send(hangupTwiml());
     return;
   }
-  let handoff: { action?: string; to?: string; who?: string } = {};
+  let handoff: { action?: string; to?: string; who?: string; caller?: string; reason?: string } = {};
   const raw = (req.body?.HandoffData as string) ?? '';
   try {
     if (raw) handoff = JSON.parse(raw);
@@ -64,9 +85,15 @@ app.post('/twiml/action', (req, res) => {
   log('http', `Fin de session ConversationRelay, action=${handoff.action ?? 'aucune'}`);
   if (handoff.action === 'transfer' && handoff.to) {
     const base = publicBase(req);
-    const whoQuery = handoff.who ? `?who=${encodeURIComponent(handoff.who)}` : '';
-    log('http', `Transfert vers ${handoff.to}`);
-    res.type('text/xml').send(transferTwiml(handoff.to, `${base}/twiml/dial-status${whoQuery}`));
+    const callerCallSid = (req.body?.CallSid as string) ?? '';
+    const dialAction = `${base}/twiml/dial-status?who=${encodeURIComponent(handoff.who ?? '')}`;
+    const whisper = `${base}/twiml/whisper?${new URLSearchParams({
+      caller: handoff.caller ?? '',
+      reason: handoff.reason ?? '',
+      accept: callerCallSid,
+    }).toString()}`;
+    log('http', `Transfert filtre vers ${handoff.to}`);
+    res.type('text/xml').send(transferTwiml(handoff.to, dialAction, whisper));
     return;
   }
   res.type('text/xml').send(hangupTwiml('Merci de votre appel. Au revoir.'));
@@ -80,11 +107,14 @@ app.post('/twiml/dial-status', (req, res) => {
     return;
   }
   const status = (req.body?.DialCallStatus as string) ?? '';
+  const callerCallSid = (req.body?.CallSid as string) ?? '';
   log('http', `Resultat du transfert: ${status}`);
-  if (status === 'completed' || status === 'answered') {
+  // La personne a accepte (appuye sur 1) et a parle avec l'appelant: on raccroche.
+  if (consumeTransferAccepted(callerCallSid)) {
     res.type('text/xml').send(hangupTwiml());
     return;
   }
+  // Non accepte (decline, boite vocale, pas de reponse): Gio prend un message.
   const who = (req.query?.who as string) || '';
   const base = publicBase(req);
   // Chemin dedie: le mode "message" est derive du chemin, fiable cote Twilio.
@@ -93,6 +123,36 @@ app.post('/twiml/dial-status', (req, res) => {
   res.type('text/xml').send(
     connectTwiml(wssUrl, actionUrl, { greeting: messageGreeting(who || undefined) }),
   );
+});
+
+// Chuchotement a la personne appelee (elle doit appuyer sur 1 pour accepter).
+app.post('/twiml/whisper', (req, res) => {
+  if (!twilioSignatureValid(req)) {
+    res.status(403).type('text/xml').send(hangupTwiml());
+    return;
+  }
+  const caller = (req.query?.caller as string) || '';
+  const reason = (req.query?.reason as string) || '';
+  const accept = (req.query?.accept as string) || '';
+  const acceptUrl = `${publicBase(req)}/twiml/accept?accept=${encodeURIComponent(accept)}`;
+  res.type('text/xml').send(whisperTwiml(caller, reason, acceptUrl));
+});
+
+// La personne a compose une touche pendant le chuchotement.
+app.post('/twiml/accept', (req, res) => {
+  if (!twilioSignatureValid(req)) {
+    res.status(403).type('text/xml').send(hangupTwiml());
+    return;
+  }
+  const accept = (req.query?.accept as string) || '';
+  const digits = (req.body?.Digits as string) || '';
+  if (digits === '1' && accept) {
+    markTransferAccepted(accept);
+    log('http', `Transfert accepte (${accept})`);
+    res.type('text/xml').send(acceptTwiml());
+    return;
+  }
+  res.type('text/xml').send(hangupTwiml());
 });
 
 const server = createServer(app);

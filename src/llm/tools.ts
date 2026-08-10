@@ -8,7 +8,7 @@ import { ensurePerson } from '../twenty/people.js';
 import { createFollowUpTask } from '../twenty/records.js';
 
 export type ToolControl =
-  | { kind: 'transfer'; to: string; reason: string; who?: string }
+  | { kind: 'transfer'; to: string; reason: string; who?: string; caller?: string }
   | { kind: 'hangup'; reason: string }
   | { kind: 'language'; lang: 'fr' | 'en' };
 
@@ -169,7 +169,13 @@ async function handleTransfer(
 
   return {
     result: 'Transfert autorise. Dis une courte phrase de mise en relation, puis laisse le transfert se faire.',
-    control: { kind: 'transfer', to: target, reason: raison || statut, who: routeName(session, existing) },
+    control: {
+      kind: 'transfer',
+      to: target,
+      reason: raison || statut,
+      who: routeName(session, existing),
+      caller: label(nom, entreprise),
+    },
   };
 }
 

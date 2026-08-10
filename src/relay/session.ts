@@ -311,7 +311,13 @@ export class RelaySession {
     await this.logCallOnce();
     const handoff =
       control.kind === 'transfer'
-        ? { action: 'transfer', to: control.to, reason: control.reason, who: control.who }
+        ? {
+            action: 'transfer',
+            to: control.to,
+            reason: control.reason,
+            who: control.who,
+            caller: control.caller,
+          }
         : { action: 'hangup', reason: control.reason };
     this.send({ type: 'end', handoffData: JSON.stringify(handoff) });
     log('relay', `Fin de session: ${control.kind}`);

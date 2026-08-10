@@ -91,7 +91,10 @@ export const config = {
     voice: opt('CR_VOICE'),
     transcriptionProvider: opt('CR_TRANSCRIPTION_PROVIDER'),
     speechModel: opt('CR_SPEECH_MODEL'),
-    interruptible: bool('CR_INTERRUPTIBLE', true),
+    // "none" | "dtmf" | "speech" | "any" (true=any, false=none).
+    interruptible: opt('CR_INTERRUPTIBLE', 'any'),
+    // Le message d'accueil ne doit pas etre coupe par un bruit: "none".
+    welcomeGreetingInterruptible: opt('CR_WELCOME_INTERRUPTIBLE', 'none'),
     // Delai de silence avant que Gio relance ("etes-vous toujours la?").
     idleMs: Number(opt('CR_IDLE_SEC', '20')) * 1000,
     // Bascule vers l'anglais si l'appelant parle anglais.

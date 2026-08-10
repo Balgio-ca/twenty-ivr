@@ -46,6 +46,7 @@ export function connectTwiml(
     attr('transcriptionProvider', r.transcriptionProvider) +
     attr('speechModel', r.speechModel) +
     attr('interruptible', r.interruptible) +
+    attr('welcomeGreetingInterruptible', r.welcomeGreetingInterruptible) +
     attr('dtmfDetection', true);
 
   // Voix pour l'anglais (bascule en cours d'appel). On declare le francais et
@@ -79,15 +80,48 @@ export function connectTwiml(
 }
 
 /**
- * TwiML de transfert vers une personne de l'equipe. Sonne `timeout` secondes;
- * `actionUrl` est appele avec DialCallStatus pour gerer le cas sans reponse.
+ * TwiML de transfert filtre. La personne appelee entend d'abord un chuchotement
+ * (whisperUrl) et doit appuyer sur 1 pour accepter; sinon l'appel n'est pas
+ * ponte et revient a actionUrl (l'appelant ne tombe jamais sur une boite vocale).
  */
-export function transferTwiml(to: string, actionUrl: string, timeout = 20): string {
+export function transferTwiml(
+  to: string,
+  actionUrl: string,
+  whisperUrl: string,
+  timeout = 25,
+): string {
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<Response>',
     `  <Say language="${config.relay.language}">Je vous mets en relation, un instant.</Say>`,
-    `  <Dial timeout="${timeout}"${attr('action', actionUrl)} answerOnBridge="true">${escapeXml(to)}</Dial>`,
+    `  <Dial timeout="${timeout}"${attr('action', actionUrl)} answerOnBridge="true">`,
+    `    <Number${attr('url', whisperUrl)}>${escapeXml(to)}</Number>`,
+    '  </Dial>',
+    '</Response>',
+  ].join('\n');
+}
+
+/** Chuchotement joue a la personne appelee: elle doit appuyer sur 1 pour accepter. */
+export function whisperTwiml(caller: string, reason: string, acceptUrl: string): string {
+  const de = caller ? ` de ${caller}` : '';
+  const sujet = reason ? ` Sujet: ${reason}.` : '';
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Response>',
+    `  <Gather numDigits="1" timeout="10"${attr('action', acceptUrl)}>`,
+    `    <Say language="${config.relay.language}">Appel${escapeXml(de)} pour Balgio.${escapeXml(sujet)} Appuyez sur le 1 pour prendre l'appel.</Say>`,
+    '  </Gather>',
+    '  <Hangup/>',
+    '</Response>',
+  ].join('\n');
+}
+
+/** Reponse quand la personne accepte (appuie sur 1): on ponte les deux appels. */
+export function acceptTwiml(): string {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Response>',
+    `  <Say language="${config.relay.language}">Je vous connecte.</Say>`,
     '</Response>',
   ].join('\n');
 }
