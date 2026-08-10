@@ -61,6 +61,7 @@ app.post('/twiml/action', (req, res) => {
   } catch {
     warn('http', 'HandoffData illisible');
   }
+  log('http', `Fin de session ConversationRelay, action=${handoff.action ?? 'aucune'}`);
   if (handoff.action === 'transfer' && handoff.to) {
     const base = publicBase(req);
     const whoQuery = handoff.who ? `?who=${encodeURIComponent(handoff.who)}` : '';
@@ -114,6 +115,7 @@ server.on('upgrade', (request, socket, head) => {
 wss.on('connection', (ws, request) => {
   const pathname = new URL(request?.url ?? '', 'http://localhost').pathname;
   const mode = pathname === '/relay-message' ? 'message' : undefined;
+  log('ws', `Connexion ${pathname}${mode ? ' [message]' : ''}`);
   const session = new RelaySession(ws, { mode });
   ws.on('message', (data) => {
     void session.onMessage(data.toString());

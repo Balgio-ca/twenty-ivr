@@ -107,6 +107,7 @@ export class RelaySession {
     this.toolSession.phoneE164 = from;
     this.startedAt = new Date().toISOString();
     log('relay', `Appel ${callSid} de ${from} vers ${to}${this.mode ? ` [${this.mode}]` : ''}`);
+    log('relay', `setup params=${JSON.stringify(msg.customParameters ?? {})}`);
 
     try {
       const person = await findPersonByPhone(from);
@@ -156,6 +157,7 @@ export class RelaySession {
       // Un tour est deja en cours; on annule l'ancien avant d'enchainer.
       this.currentAbort?.abort();
     }
+    log('relay', `appelant: ${text.slice(0, 90)}`);
     this.transcript.push({ role: 'user', text });
     this.messages.push({ role: 'user', content: text });
     await this.runAgent();
