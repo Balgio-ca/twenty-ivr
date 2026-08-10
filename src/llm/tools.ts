@@ -27,6 +27,8 @@ export interface ToolSession {
   ownerPhone?: string;
   /** Nom du responsable du dossier, si connu. */
   ownerName?: string;
+  /** Membre Twenty (account owner) a qui assigner la tache, si connu. */
+  ownerMemberId?: string;
   callSummary?: string;
   callOutcome?: string;
 }
@@ -215,6 +217,7 @@ async function handlePrendreMessage(
     title: `Message de ${label(nom, entreprise)} - ${raison || 'appel'}`,
     body,
     personId: session.personId,
+    assigneeId: session.ownerMemberId || config.business.defaultAssigneeId,
   });
   void sendSms(target, sms);
   void sendMessageEmail({

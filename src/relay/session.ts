@@ -123,6 +123,7 @@ export class RelaySession {
           'relay',
           `Contact reconnu: ${this.knownName || person.id} (${this.toolSession.existingClient ? 'client actif' : 'non-client'})`,
         );
+        this.toolSession.ownerMemberId = person.company?.accountOwnerId;
         if (this.toolSession.existingClient) {
           const owner = await accountOwnerName(person);
           const phone = owner ? config.business.ownerPhones[owner.toLowerCase()] : undefined;

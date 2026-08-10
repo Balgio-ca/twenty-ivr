@@ -39,6 +39,8 @@ export const config = {
     // Prenoms utilises a l'oral (ex: "il semble que Mathieu ne soit pas dispo").
     existingName: opt('EXISTING_CONTACT_NAME', 'Mathieu'),
     newName: opt('NEW_CONTACT_NAME', 'Alexandre'),
+    // Membre Twenty a qui assigner les taches de suivi (defaut: Mathieu Giosi).
+    defaultAssigneeId: opt('DEFAULT_ASSIGNEE_ID', '3f1f1fee-27e9-40c9-9f71-101a9c6d0a05'),
     // Routage vers le vrai responsable du dossier (account owner du CRM).
     // Table "Nom complet=+1...;Autre=+1..." (le nom doit matcher le membre Twenty).
     ownerPhones: parsePairs(

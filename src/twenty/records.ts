@@ -84,6 +84,7 @@ export async function createFollowUpTask(input: {
   title: string;
   body: string;
   personId?: string;
+  assigneeId?: string;
   dueAt?: string;
 }): Promise<{ id: string } | null> {
   if (!twenty.enabled) return null;
@@ -91,6 +92,7 @@ export async function createFollowUpTask(input: {
     title: input.title,
     bodyV2: { markdown: input.body },
     status: 'TODO',
+    ...(input.assigneeId ? { assigneeId: input.assigneeId } : {}),
     ...(input.dueAt ? { dueAt: input.dueAt } : {}),
   });
   if (input.personId) {
