@@ -14,6 +14,7 @@ import {
 } from '../twenty/people.js';
 import { createNoteOnPerson, logCall } from '../twenty/records.js';
 import { humanAvailable } from '../util/hours.js';
+import { looksLikeTtsError, markPrimaryTtsDown } from '../tts-health.js';
 import { error, log, warn } from '../util/logger.js';
 import type { InboundMessage, OutboundMessage } from './protocol.js';
 
@@ -83,9 +84,12 @@ export class RelaySession {
       case 'dtmf':
         await this.onDtmf(msg.digit ?? msg.digits ?? '');
         break;
-      case 'error':
-        warn('relay', `Erreur ConversationRelay: ${msg.description ?? 'inconnue'}`);
+      case 'error': {
+        const desc = msg.description ?? 'inconnue';
+        warn('relay', `Erreur ConversationRelay: ${desc}`);
+        if (looksLikeTtsError(desc)) markPrimaryTtsDown(desc.slice(0, 80));
         break;
+      }
       default:
         break;
     }

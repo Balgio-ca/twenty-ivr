@@ -93,6 +93,11 @@ export const config = {
     bilingual: bool('CR_BILINGUAL', true),
     languageEn: opt('CR_LANGUAGE_EN', 'en-US'),
     voiceEn: opt('CR_VOICE_EN') || opt('CR_VOICE'),
+    // Repli TTS si le fournisseur primaire echoue (ex: ElevenLabs a capacite).
+    // Les appels suivants utilisent ce fournisseur pendant le refroidissement.
+    fallbackProvider: opt('CR_TTS_FALLBACK_PROVIDER', 'Amazon'),
+    fallbackVoice: opt('CR_FALLBACK_VOICE', 'Liam-Neural'),
+    fallbackCooldownMs: Number(opt('CR_TTS_COOLDOWN_MIN', '15')) * 60_000,
   },
 };
 

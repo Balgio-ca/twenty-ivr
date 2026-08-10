@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { activeTts } from './tts-health.js';
 
 function escapeXml(value: string): string {
   return value
@@ -24,12 +25,14 @@ export function welcomeGreeting(): string {
 /** TwiML qui connecte l'appel au websocket ConversationRelay. */
 export function connectTwiml(wssUrl: string, actionUrl: string): string {
   const r = config.relay;
+  // Fournisseur/voix actifs (primaire ElevenLabs, ou repli Amazon si en echec).
+  const tts = activeTts();
   const relayAttrs =
     attr('url', wssUrl) +
     attr('welcomeGreeting', welcomeGreeting()) +
     attr('language', r.language) +
-    attr('ttsProvider', r.ttsProvider) +
-    attr('voice', r.voice) +
+    attr('ttsProvider', tts.provider) +
+    attr('voice', tts.voice) +
     attr('transcriptionProvider', r.transcriptionProvider) +
     attr('speechModel', r.speechModel) +
     attr('interruptible', r.interruptible) +
@@ -40,8 +43,8 @@ export function connectTwiml(wssUrl: string, actionUrl: string): string {
   const languages: string[] = [];
   if (r.bilingual && r.languageEn) {
     languages.push(
-      `    <Language${attr('code', r.language)}${attr('ttsProvider', r.ttsProvider)}${attr('voice', r.voice)} />`,
-      `    <Language${attr('code', r.languageEn)}${attr('ttsProvider', r.ttsProvider)}${attr('voice', r.voiceEn)} />`,
+      `    <Language${attr('code', r.language)}${attr('ttsProvider', tts.provider)}${attr('voice', tts.voice)} />`,
+      `    <Language${attr('code', r.languageEn)}${attr('ttsProvider', tts.provider)}${attr('voice', tts.voiceEn)} />`,
     );
   }
 
