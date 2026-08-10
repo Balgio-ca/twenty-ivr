@@ -36,3 +36,31 @@ export async function sendSms(to: string, body: string): Promise<boolean> {
     return false;
   }
 }
+
+/** Demarre l'enregistrement d'un appel via l'API Twilio (les deux directions). */
+export async function startCallRecording(callSid: string, statusCallbackUrl: string): Promise<void> {
+  const { accountSid, authToken } = config.twilio;
+  if (!accountSid || !authToken || !callSid) return;
+  try {
+    const res = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${callSid}/Recordings.json`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          RecordingStatusCallback: statusCallbackUrl,
+          RecordingStatusCallbackEvent: 'completed',
+          RecordingChannels: 'dual',
+        }).toString(),
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (!res.ok) warn('rec', `Echec demarrage enregistrement ${res.status}`, (await res.text()).slice(0, 150));
+    else log('rec', `Enregistrement demarre pour ${callSid}`);
+  } catch (err) {
+    warn('rec', 'Erreur demarrage enregistrement', err);
+  }
+}

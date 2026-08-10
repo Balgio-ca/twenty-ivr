@@ -19,7 +19,8 @@ function attr(name: string, value: string | boolean | undefined): string {
 /** Message d'accueil parle automatiquement par ConversationRelay. */
 export function welcomeGreeting(): string {
   const { name, assistant } = config.business;
-  return `Bonjour, ici ${assistant}, l'assistant virtuel de ${name}. Comment puis-je vous aider aujourd'hui ?`;
+  const notice = config.recording.enabled ? ` ${config.recording.notice}` : '';
+  return `Bonjour, ici ${assistant}, l'assistant virtuel de ${name}.${notice} Comment puis-je vous aider aujourd'hui ?`;
 }
 
 /** Accueil quand on reprend la ligne apres un transfert sans reponse. */

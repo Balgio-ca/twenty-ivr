@@ -6,6 +6,7 @@ export async function logCall(input: {
   callSid: string;
   phoneNumber: string;
   personId?: string;
+  companyId?: string;
   name: string;
   startedAt: string;
   endedAt: string;
@@ -28,11 +29,45 @@ export async function logCall(input: {
     outcome: input.outcome ?? 'CONNECTED',
   };
   if (input.personId) body.personId = input.personId;
+  if (input.companyId) body.companyId = input.companyId;
   if (input.summary) body.summary = input.summary;
   if (input.notes) body.notes = input.notes;
   const call = await twenty.post<{ id: string }>('/calls', body);
   log('twenty', `Appel journalise ${call.id}`);
   return call;
+}
+
+/** Attache l'URL d'enregistrement a l'appel (retrouve par twilioCallSid). */
+export async function attachRecording(callSid: string, url: string): Promise<void> {
+  if (!twenty.enabled || !callSid || !url) return;
+  const filter = encodeURIComponent(`twilioCallSid[eq]:${callSid}`);
+  const calls = await twenty.getList<{ id: string }>(`/calls?filter=${filter}&limit=1&depth=0`);
+  const call = calls[0];
+  if (!call) {
+    log('twenty', `Aucun appel trouve pour ${callSid} (enregistrement non attache)`);
+    return;
+  }
+  await twenty.patch(`/calls/${call.id}`, {
+    recordingUrl: { primaryLinkUrl: url, primaryLinkLabel: 'Enregistrement' },
+  });
+  log('twenty', `Enregistrement attache a l'appel ${call.id}`);
+}
+
+/** Cree une opportunite pour un nouveau lead (stage NOUVEAU). */
+export async function createOpportunity(input: {
+  name: string;
+  personId?: string;
+  companyId?: string;
+  ownerId?: string;
+}): Promise<{ id: string } | null> {
+  if (!twenty.enabled) return null;
+  const body: Record<string, unknown> = { name: input.name, stage: 'NOUVEAU' };
+  if (input.personId) body.pointOfContactId = input.personId;
+  if (input.companyId) body.companyId = input.companyId;
+  if (input.ownerId) body.ownerId = input.ownerId;
+  const opp = await twenty.post<{ id: string }>('/opportunities', body);
+  log('twenty', `Opportunite creee ${opp.id}`);
+  return opp;
 }
 
 /** Cree un rendez-vous (objet `meetings`, libelle "Rendez-vous"). */

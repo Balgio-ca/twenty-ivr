@@ -5,6 +5,8 @@ import twilio from 'twilio';
 
 import { config } from './config.js';
 import { RelaySession } from './relay/session.js';
+import { startCallRecording } from './sms.js';
+import { attachRecording } from './twenty/records.js';
 import {
   acceptTwiml,
   connectTwiml,
@@ -67,6 +69,26 @@ app.post('/twiml/voice', (req, res) => {
   const actionUrl = `${base}/twiml/action`;
   log('http', `Nouvel appel -> ConversationRelay ${wssUrl}`);
   res.type('text/xml').send(connectTwiml(wssUrl, actionUrl));
+
+  // Enregistrement de l'appel (en arriere-plan). L'avis de consentement est
+  // dans le message d'accueil.
+  const callSid = (req.body?.CallSid as string) ?? '';
+  if (config.recording.enabled && callSid) {
+    void startCallRecording(callSid, `${base}/twiml/recording-status`);
+  }
+});
+
+// Twilio notifie quand l'enregistrement est pret: on l'attache a l'appel Twenty.
+app.post('/twiml/recording-status', (req, res) => {
+  if (!twilioSignatureValid(req)) {
+    res.status(403).end();
+    return;
+  }
+  const callSid = (req.body?.CallSid as string) ?? '';
+  const url = (req.body?.RecordingUrl as string) ?? '';
+  log('http', `Enregistrement pret pour ${callSid}`);
+  if (callSid && url) void attachRecording(callSid, url);
+  res.type('text/xml').send('<Response/>');
 });
 
 // Action de fin de session ConversationRelay (transfert ou raccroché).

@@ -5,7 +5,7 @@ import { sendSms } from '../sms.js';
 import { error, log } from '../util/logger.js';
 import { isBusinessOpen } from '../util/hours.js';
 import { ensurePerson } from '../twenty/people.js';
-import { createFollowUpTask } from '../twenty/records.js';
+import { createFollowUpTask, createOpportunity } from '../twenty/records.js';
 
 export type ToolControl =
   | { kind: 'transfer'; to: string; reason: string; who?: string; caller?: string }
@@ -23,6 +23,10 @@ export interface ToolSession {
   personId?: string;
   existingClient: boolean;
   companyName?: string;
+  /** Id de la societe reliee (pour lier l'appel/l'opportunite). */
+  companyId?: string;
+  /** Une opportunite a deja ete creee pour ce nouveau lead durant l'appel. */
+  opportunityDone?: boolean;
   /** Telephone du responsable du dossier (account owner), si connu. */
   ownerPhone?: string;
   /** Nom du responsable du dossier, si connu. */
@@ -59,6 +63,18 @@ function clientFlag(args: Record<string, unknown>, session: ToolSession): boolea
 function label(nom: string, entreprise: string): string {
   const n = nom.trim() || 'Appelant';
   return entreprise.trim() ? `${n} (${entreprise.trim()})` : n;
+}
+
+/** Cree une opportunite (pipeline) pour un nouveau lead, une seule fois par appel. */
+function ensureOpportunityForNewLead(session: ToolSession, nom: string, entreprise: string): void {
+  if (session.existingClient || session.opportunityDone || !session.personId) return;
+  session.opportunityDone = true;
+  void createOpportunity({
+    name: `${label(nom, entreprise)} - Appel entrant`,
+    personId: session.personId,
+    companyId: session.companyId,
+    ownerId: config.business.defaultAssigneeId,
+  });
 }
 
 export const TOOLS: Anthropic.Tool[] = [
@@ -161,6 +177,7 @@ async function handleTransfer(
     const person = await ensurePerson(session.phoneE164, nom);
     if (person) session.personId = person.id;
   }
+  ensureOpportunityForNewLead(session, nom, entreprise);
 
   const statut = existing ? 'Client existant' : 'Nouveau contact';
   const sms = `Appel Balgio - ${label(nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Transfert en cours.`;
@@ -197,6 +214,7 @@ async function handlePrendreMessage(
     const person = await ensurePerson(numero, nom);
     if (person) session.personId = person.id;
   }
+  ensureOpportunityForNewLead(session, nom, entreprise);
 
   const statut = existing ? 'Client existant' : 'Nouveau contact';
   const body = [

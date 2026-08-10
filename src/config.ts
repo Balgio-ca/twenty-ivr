@@ -57,6 +57,11 @@ export const config = {
     },
   },
 
+  recording: {
+    enabled: bool('CALL_RECORDING', true),
+    notice: opt('RECORDING_NOTICE', 'Cet appel pourrait être enregistré.'),
+  },
+
   email: {
     smtpHost: opt('SMTP_HOST'),
     smtpPort: Number(opt('SMTP_PORT', '587')),

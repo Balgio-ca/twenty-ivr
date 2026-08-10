@@ -58,6 +58,11 @@ export class TwentyClient {
     return TwentyClient.unwrap<T>(json);
   }
 
+  async patch<T>(path: string, body: unknown): Promise<T> {
+    const json = await this.request<{ data?: Record<string, unknown> }>('PATCH', path, body);
+    return TwentyClient.unwrap<T>(json);
+  }
+
   async getList<T>(path: string): Promise<T[]> {
     const json = await this.request<{ data?: Record<string, unknown> }>('GET', path);
     const value = TwentyClient.unwrap<T[]>(json);

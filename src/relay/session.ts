@@ -123,6 +123,7 @@ export class RelaySession {
           'relay',
           `Contact reconnu: ${this.knownName || person.id} (${this.toolSession.existingClient ? 'client actif' : 'non-client'})`,
         );
+        this.toolSession.companyId = person.company?.id;
         this.toolSession.ownerMemberId = person.company?.accountOwnerId;
         if (this.toolSession.existingClient) {
           const owner = await accountOwnerName(person);
@@ -399,6 +400,7 @@ export class RelaySession {
         callSid: this.callSid,
         phoneNumber: this.phoneE164,
         personId: this.toolSession.personId,
+        companyId: this.toolSession.companyId,
         name: `Appel entrant - ${this.knownName || this.phoneE164}`,
         startedAt: this.startedAt,
         endedAt,
