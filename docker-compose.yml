@@ -1,0 +1,21 @@
+# Deploiement autonome sur le meme hote que Twenty.
+# Le conteneur rejoint le reseau `twenty_default` pour que le Caddy de Twenty
+# puisse le proxifier via son nom (twenty-ivr:8080). Aucun port publie.
+services:
+  ivr:
+    build: .
+    image: twenty-ivr
+    container_name: twenty-ivr
+    restart: always
+    env_file: .env
+    networks:
+      - twenty_default
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  twenty_default:
+    external: true

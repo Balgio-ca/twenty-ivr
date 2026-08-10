@@ -1,0 +1,32 @@
+{
+  "name": "twenty-ivr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standardiste IA (Gio) pour Balgio - IVR Twilio ConversationRelay + Claude + Twenty CRM",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "tunnel": "echo 'Expose le port local a Twilio, ex: cloudflared tunnel --url http://localhost:8080  ou  ngrok http 8080'"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0",
+    "libphonenumber-js": "^1.11.0",
+    "twilio": "^5.3.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
