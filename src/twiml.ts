@@ -19,13 +19,13 @@ function attr(name: string, value: string | boolean | undefined): string {
 /** Message d'accueil parle automatiquement par ConversationRelay. */
 export function welcomeGreeting(): string {
   const { name, assistant } = config.business;
-  return `Bonjour, ici ${assistant}, l'assistant virtuel de ${name}. Comment puis-je vous aider aujourd'hui?`;
+  return `Bonjour, ici ${assistant}, l'assistant virtuel de ${name}. Comment puis-je vous aider aujourd'hui ?`;
 }
 
 /** Accueil quand on reprend la ligne apres un transfert sans reponse. */
 export function messageGreeting(who?: string): string {
   const nom = who && who.trim() ? who.trim() : 'la personne';
-  return `Desole, il semble que ${nom} ne soit pas disponible pour le moment. Je peux prendre un message, et nous vous rappellerons le plus rapidement possible.`;
+  return `Désolé, il semble que ${nom} ne soit pas disponible pour le moment. Je peux prendre un message et nous vous rappellerons rapidement. Quelle est la raison de votre appel?`;
 }
 
 /** TwiML qui connecte l'appel au websocket ConversationRelay. */

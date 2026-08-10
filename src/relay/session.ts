@@ -229,7 +229,7 @@ export class RelaySession {
           error('relay', 'Echec Claude', err);
           this.send({
             type: 'text',
-            token: "Desole, un petit probleme technique. Pouvez-vous repeter?",
+            token: 'Désolé, un petit problème technique. Pouvez-vous répéter ?',
             last: true,
           });
           return;
@@ -338,7 +338,7 @@ export class RelaySession {
     if (this.idleStrikes >= 2) {
       this.send({
         type: 'text',
-        token: 'Je vais vous laisser pour l instant. N hesitez pas a rappeler. Au revoir.',
+        token: "Je vais vous laisser pour l'instant. N'hésitez pas à rappeler. Au revoir.",
         last: true,
       });
       await this.logCallOnce();
@@ -347,7 +347,7 @@ export class RelaySession {
     }
     this.send({
       type: 'text',
-      token: 'Etes-vous toujours la? Je peux prendre un message si vous preferez.',
+      token: 'Êtes-vous toujours là ? Je peux prendre un message si vous préférez.',
       last: true,
     });
     this.armIdle();

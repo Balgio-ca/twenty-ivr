@@ -86,22 +86,23 @@ app.post('/twiml/dial-status', (req, res) => {
   }
   const who = (req.query?.who as string) || '';
   const base = publicBase(req);
-  const wssUrl = `${base.replace(/^http/, 'ws')}/relay`;
+  // Chemin dedie: le mode "message" est derive du chemin, fiable cote Twilio.
+  const wssUrl = `${base.replace(/^http/, 'ws')}/relay-message`;
   const actionUrl = `${base}/twiml/action`;
   res.type('text/xml').send(
-    connectTwiml(wssUrl, actionUrl, {
-      greeting: messageGreeting(who || undefined),
-      parameters: { mode: 'message' },
-    }),
+    connectTwiml(wssUrl, actionUrl, { greeting: messageGreeting(who || undefined) }),
   );
 });
 
 const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
+const RELAY_PATHS = new Set(['/relay', '/relay-message']);
+
 server.on('upgrade', (request, socket, head) => {
   const { url } = request;
-  if (!url || new URL(url, 'http://localhost').pathname !== '/relay') {
+  const pathname = url ? new URL(url, 'http://localhost').pathname : '';
+  if (!RELAY_PATHS.has(pathname)) {
     socket.destroy();
     return;
   }
@@ -111,8 +112,9 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 wss.on('connection', (ws, request) => {
-  const mode = new URL(request?.url ?? '', 'http://localhost').searchParams.get('mode');
-  const session = new RelaySession(ws, { mode: mode === 'message' ? 'message' : undefined });
+  const pathname = new URL(request?.url ?? '', 'http://localhost').pathname;
+  const mode = pathname === '/relay-message' ? 'message' : undefined;
+  const session = new RelaySession(ws, { mode });
   ws.on('message', (data) => {
     void session.onMessage(data.toString());
   });
