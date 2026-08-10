@@ -11,6 +11,19 @@ function bool(name: string, fallback: boolean): boolean {
   return v !== 'false' && v !== '0';
 }
 
+/** Parse "Nom=+1...;Autre=+1..." en table {nom minuscule -> telephone}. */
+function parsePairs(raw: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of raw.split(/[;\n]/)) {
+    const idx = part.indexOf('=');
+    if (idx <= 0) continue;
+    const key = part.slice(0, idx).trim().toLowerCase();
+    const value = part.slice(idx + 1).trim();
+    if (key && value) out[key] = value;
+  }
+  return out;
+}
+
 export const config = {
   port: Number(opt('PORT', '8080')),
   // URL publique du service. Vide => deduite des entetes de la requete.
@@ -23,6 +36,11 @@ export const config = {
     // Routage par statut client. Existant -> Mathieu; nouveau -> Alexandre.
     transferExisting: opt('TRANSFER_EXISTING_CLIENT') || opt('HUMAN_TRANSFER_NUMBER') || '+14389288488',
     transferNew: opt('TRANSFER_NEW_CLIENT', '+15145716742'),
+    // Routage vers le vrai responsable du dossier (account owner du CRM).
+    // Table "Nom complet=+1...;Autre=+1..." (le nom doit matcher le membre Twenty).
+    ownerPhones: parsePairs(
+      opt('OWNER_PHONES', 'mathieu giosi=+14389288488;alexandre beauchamp=+15145716742'),
+    ),
     mainPhone: opt('BUSINESS_MAIN_PHONE', '514-447-5205'),
     hours: {
       openHour: Number(opt('BUSINESS_OPEN_HOUR', '8')),
@@ -71,6 +89,10 @@ export const config = {
     transcriptionProvider: opt('CR_TRANSCRIPTION_PROVIDER'),
     speechModel: opt('CR_SPEECH_MODEL'),
     interruptible: bool('CR_INTERRUPTIBLE', true),
+    // Bascule vers l'anglais si l'appelant parle anglais.
+    bilingual: bool('CR_BILINGUAL', true),
+    languageEn: opt('CR_LANGUAGE_EN', 'en-US'),
+    voiceEn: opt('CR_VOICE_EN') || opt('CR_VOICE'),
   },
 };
 

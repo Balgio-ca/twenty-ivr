@@ -35,11 +35,25 @@ export function connectTwiml(wssUrl: string, actionUrl: string): string {
     attr('interruptible', r.interruptible) +
     attr('dtmfDetection', true);
 
+  // Voix pour l'anglais (bascule en cours d'appel). On declare le francais et
+  // l'anglais comme langues disponibles.
+  const languages: string[] = [];
+  if (r.bilingual && r.languageEn) {
+    languages.push(
+      `    <Language${attr('code', r.language)}${attr('ttsProvider', r.ttsProvider)}${attr('voice', r.voice)} />`,
+      `    <Language${attr('code', r.languageEn)}${attr('ttsProvider', r.ttsProvider)}${attr('voice', r.voiceEn)} />`,
+    );
+  }
+
+  const relayEl = languages.length
+    ? `    <ConversationRelay${relayAttrs}>\n${languages.join('\n')}\n    </ConversationRelay>`
+    : `    <ConversationRelay${relayAttrs} />`;
+
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<Response>',
     `  <Connect${attr('action', actionUrl)}>`,
-    `    <ConversationRelay${relayAttrs} />`,
+    relayEl,
     '  </Connect>',
     '</Response>',
   ].join('\n');

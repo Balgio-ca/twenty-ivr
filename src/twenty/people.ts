@@ -11,11 +11,38 @@ export type Person = {
   company?: {
     id?: string;
     name?: string;
+    accountOwnerId?: string;
     clientStatus?: string;
     lastInvoiceDate?: string | null;
     lifetimeValue?: { amountMicros?: number | null };
   };
 };
+
+type WorkspaceMember = { id: string; name?: { firstName?: string; lastName?: string } };
+let memberCache: Map<string, string> | null = null;
+
+async function workspaceMembers(): Promise<Map<string, string>> {
+  if (memberCache) return memberCache;
+  const list = await twenty.getList<WorkspaceMember>('/workspaceMembers?limit=200&depth=0');
+  const map = new Map<string, string>();
+  for (const m of list) {
+    const full = `${m.name?.firstName ?? ''} ${m.name?.lastName ?? ''}`.trim();
+    if (m.id) map.set(m.id, full);
+  }
+  memberCache = map;
+  return map;
+}
+
+/** Nom complet du responsable de compte (account owner) de la societe reliee. */
+export async function accountOwnerName(p?: Person | null): Promise<string> {
+  const id = p?.company?.accountOwnerId;
+  if (!id || !twenty.enabled) return '';
+  try {
+    return (await workspaceMembers()).get(id) ?? '';
+  } catch {
+    return '';
+  }
+}
 
 export function companyName(p?: Person | null): string {
   return p?.company?.name ?? '';

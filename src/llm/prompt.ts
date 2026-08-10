@@ -33,6 +33,8 @@ export function buildSystemPrompt(ctx: CallerContext): string {
     `- Une seule question a la fois.`,
     `- Ne fais jamais epeler un nom. Prends ce que tu entends et continue. Ne demande pas de repeter plus d'une fois. Le nom n'est pas obligatoire pour transferer.`,
     `- Ne collecte que le strict necessaire. Pas d'interrogatoire.`,
+    `- Si l'appelant s'exprime en anglais, appelle l'outil changer_langue avec 'en' et poursuis en anglais. Reviens au francais s'il y revient.`,
+    `- Numero de rappel: par defaut, utilise le numero affiche de l'appelant, ne le demande pas. S'il veut un autre numero, demande-lui de le composer sur le clavier, puis le carre; le numero saisi te sera transmis entre parentheses.`,
     ``,
     `Contexte:`,
     `- Heures d'ouverture: ${hoursDescription()}.`,

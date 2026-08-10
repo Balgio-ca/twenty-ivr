@@ -5,7 +5,13 @@ import { config } from '../config.js';
 import { anthropic } from '../llm/agent.js';
 import { buildSystemPrompt } from '../llm/prompt.js';
 import { TOOLS, dispatchTool, type ToolControl, type ToolSession } from '../llm/tools.js';
-import { companyName, findPersonByPhone, fullName, isActiveClient } from '../twenty/people.js';
+import {
+  accountOwnerName,
+  companyName,
+  findPersonByPhone,
+  fullName,
+  isActiveClient,
+} from '../twenty/people.js';
 import { createNoteOnPerson, logCall } from '../twenty/records.js';
 import { humanAvailable } from '../util/hours.js';
 import { error, log, warn } from '../util/logger.js';
@@ -35,6 +41,7 @@ export class RelaySession {
   private closed = false;
   private busy = false;
   private personExisted = false;
+  private dtmfBuffer = '';
 
   private readonly toolSession: ToolSession;
 
@@ -74,7 +81,7 @@ export class RelaySession {
         this.onInterrupt();
         break;
       case 'dtmf':
-        await this.onPrompt(`L'appelant a compose la touche ${msg.digit ?? msg.digits ?? ''}.`);
+        await this.onDtmf(msg.digit ?? msg.digits ?? '');
         break;
       case 'error':
         warn('relay', `Erreur ConversationRelay: ${msg.description ?? 'inconnue'}`);
@@ -103,6 +110,14 @@ export class RelaySession {
           'relay',
           `Contact reconnu: ${this.knownName || person.id} (${this.toolSession.existingClient ? 'client actif' : 'non-client'})`,
         );
+        if (this.toolSession.existingClient) {
+          const owner = await accountOwnerName(person);
+          const phone = owner ? config.business.ownerPhones[owner.toLowerCase()] : undefined;
+          if (phone) {
+            this.toolSession.ownerPhone = phone;
+            log('relay', `Responsable ${owner} -> ${phone}`);
+          }
+        }
       }
     } catch (err) {
       warn('relay', 'Recherche du contact impossible', err);
@@ -134,6 +149,30 @@ export class RelaySession {
   private onInterrupt(): void {
     log('relay', 'Interruption par l appelant');
     this.currentAbort?.abort();
+  }
+
+  /** Accumule les touches du clavier; '#' valide, '*' efface. */
+  private async onDtmf(digit: string): Promise<void> {
+    if (!digit) return;
+    if (digit === '#') {
+      const num = this.dtmfBuffer;
+      this.dtmfBuffer = '';
+      if (num) await this.onPrompt(`(L'appelant a saisi ce numero au clavier: ${num})`);
+      return;
+    }
+    if (digit === '*') {
+      this.dtmfBuffer = '';
+      return;
+    }
+    this.dtmfBuffer += digit;
+  }
+
+  /** Bascule la langue de la synthese et de la transcription. */
+  private applyLanguage(lang: 'fr' | 'en'): void {
+    if (!config.relay.bilingual) return;
+    const target = lang === 'en' ? config.relay.languageEn : config.relay.language;
+    this.send({ type: 'language', ttsLanguage: target, transcriptionLanguage: target });
+    log('relay', `Langue -> ${target}`);
   }
 
   // -------- boucle agent --------
@@ -211,6 +250,11 @@ export class RelaySession {
         this.messages.push({ role: 'user', content: results });
 
         if (control) {
+          if (control.kind === 'language') {
+            // Changement de langue: on applique et on continue la conversation.
+            this.applyLanguage(control.lang);
+            continue;
+          }
           // La phrase de politesse a deja ete diffusee dans ce tour; on clot
           // le tour de parole puis on execute l'action (transfert/raccroché).
           this.finishSpeaking();
@@ -226,7 +270,7 @@ export class RelaySession {
     }
   }
 
-  private async executeControl(control: ToolControl): Promise<void> {
+  private async executeControl(control: Exclude<ToolControl, { kind: 'language' }>): Promise<void> {
     await this.logCallOnce();
     const handoff =
       control.kind === 'transfer'

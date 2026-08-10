@@ -9,7 +9,8 @@ import { createFollowUpTask } from '../twenty/records.js';
 
 export type ToolControl =
   | { kind: 'transfer'; to: string; reason: string }
-  | { kind: 'hangup'; reason: string };
+  | { kind: 'hangup'; reason: string }
+  | { kind: 'language'; lang: 'fr' | 'en' };
 
 export type ToolOutcome = {
   result: string;
@@ -22,13 +23,19 @@ export interface ToolSession {
   personId?: string;
   existingClient: boolean;
   companyName?: string;
+  /** Telephone du responsable du dossier (account owner), si connu. */
+  ownerPhone?: string;
   callSummary?: string;
   callOutcome?: string;
 }
 
-/** Numero vers lequel router selon le statut client (confirme par l'appelant). */
-function routeTo(existing: boolean): string {
-  return existing ? config.business.transferExisting : config.business.transferNew;
+/**
+ * Numero vers lequel router. Client existant -> son responsable de dossier si
+ * connu, sinon le numero des clients existants. Nouveau contact -> Alexandre.
+ */
+function routeTo(session: ToolSession, existing: boolean): string {
+  if (existing) return session.ownerPhone || config.business.transferExisting;
+  return config.business.transferNew;
 }
 
 function clientFlag(args: Record<string, unknown>, session: ToolSession): boolean {
@@ -81,6 +88,18 @@ export const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'changer_langue',
+    description:
+      "Change la langue de la conversation quand l'appelant s'exprime dans une autre langue. Appelle-le des que tu detectes de l'anglais, puis poursuis dans cette langue.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        langue: { type: 'string', enum: ['fr', 'en'], description: 'fr pour francais, en pour anglais.' },
+      },
+      required: ['langue'],
+    },
+  },
+  {
     name: 'terminer_appel',
     description:
       "Termine et raccroche l'appel. Dis d'abord au revoir, puis appelle cet outil avec un resume clair.",
@@ -117,7 +136,7 @@ async function handleTransfer(
   const existing = clientFlag(args, session);
   session.existingClient = existing;
 
-  const target = routeTo(existing);
+  const target = routeTo(session, existing);
   if (!isBusinessOpen() || !target) {
     return {
       result:
@@ -192,7 +211,7 @@ async function handlePrendreMessage(
   }
 
   const sms = `Message Balgio - ${label(nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Rappeler au ${numero}.`;
-  await sendSms(routeTo(existing), sms);
+  await sendSms(routeTo(session, existing), sms);
 
   session.callSummary = `Message (${statut}). ${label(nom, entreprise)}. Raison: ${raison}. Rappel: ${numero}.`;
   session.callOutcome = 'CONNECTED';
@@ -223,6 +242,11 @@ export async function dispatchTool(
         return await handleTransfer(args, session);
       case 'prendre_message':
         return await handlePrendreMessage(args, session);
+      case 'changer_langue':
+        return {
+          result: 'Langue changee. Poursuis dans cette langue.',
+          control: { kind: 'language', lang: args.langue === 'en' ? 'en' : 'fr' },
+        };
       case 'terminer_appel':
         return handleTerminer(args, session);
       default:

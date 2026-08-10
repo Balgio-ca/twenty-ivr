@@ -46,5 +46,10 @@ export type InboundMessage =
 export type TextMessage = { type: 'text'; token: string; last: boolean };
 export type EndMessage = { type: 'end'; handoffData?: string };
 export type SendDigitsMessage = { type: 'sendDigits'; digits: string };
+export type LanguageMessage = {
+  type: 'language';
+  ttsLanguage: string;
+  transcriptionLanguage: string;
+};
 
-export type OutboundMessage = TextMessage | EndMessage | SendDigitsMessage;
+export type OutboundMessage = TextMessage | EndMessage | SendDigitsMessage | LanguageMessage;
