@@ -36,6 +36,9 @@ export const config = {
     // Routage par statut client. Existant -> Mathieu; nouveau -> Alexandre.
     transferExisting: opt('TRANSFER_EXISTING_CLIENT') || opt('HUMAN_TRANSFER_NUMBER') || '+14389288488',
     transferNew: opt('TRANSFER_NEW_CLIENT', '+15145716742'),
+    // Prenoms utilises a l'oral (ex: "il semble que Mathieu ne soit pas dispo").
+    existingName: opt('EXISTING_CONTACT_NAME', 'Mathieu'),
+    newName: opt('NEW_CONTACT_NAME', 'Alexandre'),
     // Routage vers le vrai responsable du dossier (account owner du CRM).
     // Table "Nom complet=+1...;Autre=+1..." (le nom doit matcher le membre Twenty).
     ownerPhones: parsePairs(

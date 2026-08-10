@@ -8,7 +8,7 @@ import { ensurePerson } from '../twenty/people.js';
 import { createFollowUpTask } from '../twenty/records.js';
 
 export type ToolControl =
-  | { kind: 'transfer'; to: string; reason: string }
+  | { kind: 'transfer'; to: string; reason: string; who?: string }
   | { kind: 'hangup'; reason: string }
   | { kind: 'language'; lang: 'fr' | 'en' };
 
@@ -25,8 +25,19 @@ export interface ToolSession {
   companyName?: string;
   /** Telephone du responsable du dossier (account owner), si connu. */
   ownerPhone?: string;
+  /** Nom du responsable du dossier, si connu. */
+  ownerName?: string;
   callSummary?: string;
   callOutcome?: string;
+}
+
+/** Prenom a annoncer a l'oral pour la personne vers qui on route. */
+function routeName(session: ToolSession, existing: boolean): string {
+  if (existing) {
+    const owner = session.ownerName?.trim();
+    return owner ? (owner.split(/\s+/)[0] ?? owner) : config.business.existingName;
+  }
+  return config.business.newName;
 }
 
 /**
@@ -158,7 +169,7 @@ async function handleTransfer(
 
   return {
     result: 'Transfert autorise. Dis une courte phrase de mise en relation, puis laisse le transfert se faire.',
-    control: { kind: 'transfer', to: target, reason: raison || statut },
+    control: { kind: 'transfer', to: target, reason: raison || statut, who: routeName(session, existing) },
   };
 }
 

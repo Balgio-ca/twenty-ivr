@@ -54,7 +54,7 @@ app.post('/twiml/action', (req, res) => {
     res.status(403).type('text/xml').send(hangupTwiml());
     return;
   }
-  let handoff: { action?: string; to?: string } = {};
+  let handoff: { action?: string; to?: string; who?: string } = {};
   const raw = (req.body?.HandoffData as string) ?? '';
   try {
     if (raw) handoff = JSON.parse(raw);
@@ -63,8 +63,9 @@ app.post('/twiml/action', (req, res) => {
   }
   if (handoff.action === 'transfer' && handoff.to) {
     const base = publicBase(req);
+    const whoQuery = handoff.who ? `?who=${encodeURIComponent(handoff.who)}` : '';
     log('http', `Transfert vers ${handoff.to}`);
-    res.type('text/xml').send(transferTwiml(handoff.to, `${base}/twiml/dial-status`));
+    res.type('text/xml').send(transferTwiml(handoff.to, `${base}/twiml/dial-status${whoQuery}`));
     return;
   }
   res.type('text/xml').send(hangupTwiml('Merci de votre appel. Au revoir.'));
@@ -83,10 +84,16 @@ app.post('/twiml/dial-status', (req, res) => {
     res.type('text/xml').send(hangupTwiml());
     return;
   }
+  const who = (req.query?.who as string) || '';
   const base = publicBase(req);
-  const wssUrl = `${base.replace(/^http/, 'ws')}/relay?mode=message`;
+  const wssUrl = `${base.replace(/^http/, 'ws')}/relay`;
   const actionUrl = `${base}/twiml/action`;
-  res.type('text/xml').send(connectTwiml(wssUrl, actionUrl, { greeting: messageGreeting() }));
+  res.type('text/xml').send(
+    connectTwiml(wssUrl, actionUrl, {
+      greeting: messageGreeting(who || undefined),
+      parameters: { mode: 'message' },
+    }),
+  );
 });
 
 const server = createServer(app);

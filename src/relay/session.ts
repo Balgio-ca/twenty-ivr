@@ -16,7 +16,7 @@ import { createNoteOnPerson, logCall } from '../twenty/records.js';
 import { humanAvailable } from '../util/hours.js';
 import { looksLikeTtsError, markPrimaryTtsDown } from '../tts-health.js';
 import { error, log, warn } from '../util/logger.js';
-import type { InboundMessage, OutboundMessage } from './protocol.js';
+import type { InboundMessage, OutboundMessage, SetupMessage } from './protocol.js';
 
 type Turn = { role: 'user' | 'assistant'; text: string };
 
@@ -43,7 +43,7 @@ export class RelaySession {
   private busy = false;
   private personExisted = false;
   private dtmfBuffer = '';
-  private readonly mode: 'message' | undefined;
+  private mode: 'message' | undefined;
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
   private idleStrikes = 0;
   private static readonly IDLE_MS = 10_000;
@@ -78,7 +78,7 @@ export class RelaySession {
     }
     switch (msg.type) {
       case 'setup':
-        await this.onSetup(msg.callSid, msg.from, msg.to);
+        await this.onSetup(msg);
         break;
       case 'prompt':
         await this.onPrompt(msg.voicePrompt ?? '');
@@ -100,12 +100,14 @@ export class RelaySession {
     }
   }
 
-  private async onSetup(callSid: string, from: string, to: string): Promise<void> {
+  private async onSetup(msg: SetupMessage): Promise<void> {
+    const { callSid, from, to } = msg;
+    if (msg.customParameters?.mode === 'message') this.mode = 'message';
     this.callSid = callSid;
     this.phoneE164 = from;
     this.toolSession.phoneE164 = from;
     this.startedAt = new Date().toISOString();
-    log('relay', `Appel ${callSid} de ${from} vers ${to}`);
+    log('relay', `Appel ${callSid} de ${from} vers ${to}${this.mode ? ` [${this.mode}]` : ''}`);
 
     try {
       const person = await findPersonByPhone(from);
@@ -124,6 +126,7 @@ export class RelaySession {
           const phone = owner ? config.business.ownerPhones[owner.toLowerCase()] : undefined;
           if (phone) {
             this.toolSession.ownerPhone = phone;
+            this.toolSession.ownerName = owner;
             log('relay', `Responsable ${owner} -> ${phone}`);
           }
         }
@@ -290,7 +293,7 @@ export class RelaySession {
     await this.logCallOnce();
     const handoff =
       control.kind === 'transfer'
-        ? { action: 'transfer', to: control.to, reason: control.reason }
+        ? { action: 'transfer', to: control.to, reason: control.reason, who: control.who }
         : { action: 'hangup', reason: control.reason };
     this.send({ type: 'end', handoffData: JSON.stringify(handoff) });
     log('relay', `Fin de session: ${control.kind}`);

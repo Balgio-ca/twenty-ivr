@@ -23,15 +23,16 @@ export function welcomeGreeting(): string {
 }
 
 /** Accueil quand on reprend la ligne apres un transfert sans reponse. */
-export function messageGreeting(): string {
-  return `Desole, je n'ai pas pu joindre la personne pour l'instant. Puis-je prendre un message pour que l'equipe vous rappelle?`;
+export function messageGreeting(who?: string): string {
+  const nom = who && who.trim() ? who.trim() : 'la personne';
+  return `Desole, il semble que ${nom} ne soit pas disponible pour le moment. Je peux prendre un message, et nous vous rappellerons le plus rapidement possible.`;
 }
 
 /** TwiML qui connecte l'appel au websocket ConversationRelay. */
 export function connectTwiml(
   wssUrl: string,
   actionUrl: string,
-  opts?: { greeting?: string },
+  opts?: { greeting?: string; parameters?: Record<string, string> },
 ): string {
   const r = config.relay;
   // Fournisseur/voix actifs (primaire ElevenLabs, ou repli Amazon si en echec).
@@ -57,8 +58,14 @@ export function connectTwiml(
     );
   }
 
-  const relayEl = languages.length
-    ? `    <ConversationRelay${relayAttrs}>\n${languages.join('\n')}\n    </ConversationRelay>`
+  // Parametres livres dans le message setup du websocket (ex: mode=message).
+  const params = Object.entries(opts?.parameters ?? {}).map(
+    ([name, value]) => `    <Parameter${attr('name', name)}${attr('value', value)} />`,
+  );
+
+  const children = [...languages, ...params];
+  const relayEl = children.length
+    ? `    <ConversationRelay${relayAttrs}>\n${children.join('\n')}\n    </ConversationRelay>`
     : `    <ConversationRelay${relayAttrs} />`;
 
   return [

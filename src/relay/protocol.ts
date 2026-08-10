@@ -9,6 +9,8 @@ export type SetupMessage = {
   to: string;
   direction?: string;
   callerName?: string;
+  /** Parametres <Parameter> passes dans le TwiML ConversationRelay. */
+  customParameters?: Record<string, string>;
 };
 
 export type PromptMessage = {
