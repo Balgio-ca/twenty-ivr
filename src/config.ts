@@ -92,6 +92,8 @@ export const config = {
     transcriptionProvider: opt('CR_TRANSCRIPTION_PROVIDER'),
     speechModel: opt('CR_SPEECH_MODEL'),
     interruptible: bool('CR_INTERRUPTIBLE', true),
+    // Delai de silence avant que Gio relance ("etes-vous toujours la?").
+    idleMs: Number(opt('CR_IDLE_SEC', '20')) * 1000,
     // Bascule vers l'anglais si l'appelant parle anglais.
     bilingual: bool('CR_BILINGUAL', true),
     languageEn: opt('CR_LANGUAGE_EN', 'en-US'),

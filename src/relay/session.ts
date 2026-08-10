@@ -46,7 +46,6 @@ export class RelaySession {
   private mode: 'message' | undefined;
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
   private idleStrikes = 0;
-  private static readonly IDLE_MS = 10_000;
 
   private readonly toolSession: ToolSession;
 
@@ -328,7 +327,7 @@ export class RelaySession {
     if (this.closed) return;
     this.idleTimer = setTimeout(() => {
       void this.onIdle();
-    }, RelaySession.IDLE_MS);
+    }, config.relay.idleMs);
   }
 
   private async onIdle(): Promise<void> {
