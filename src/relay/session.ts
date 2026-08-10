@@ -43,11 +43,16 @@ export class RelaySession {
   private busy = false;
   private personExisted = false;
   private dtmfBuffer = '';
+  private readonly mode: 'message' | undefined;
+  private idleTimer: ReturnType<typeof setTimeout> | undefined;
+  private idleStrikes = 0;
+  private static readonly IDLE_MS = 10_000;
 
   private readonly toolSession: ToolSession;
 
-  constructor(ws: WebSocket) {
+  constructor(ws: WebSocket, opts?: { mode?: 'message' }) {
     this.ws = ws;
+    this.mode = opts?.mode;
     this.setupDone = new Promise((resolve) => {
       this.resolveSetup = resolve;
     });
@@ -131,14 +136,18 @@ export class RelaySession {
       knownName: this.knownName || undefined,
       companyName: this.toolSession.companyName,
       existingClient: this.toolSession.existingClient,
+      clientStatusKnown: this.personExisted,
       phoneE164: from,
       humanAvailable: humanAvailable(),
+      mode: this.mode,
     });
     this.resolveSetup();
   }
 
   private async onPrompt(text: string): Promise<void> {
     if (!text.trim()) return;
+    this.clearIdle();
+    this.idleStrikes = 0;
     await this.setupDone;
     if (this.closed) return;
     if (this.busy) {
@@ -158,6 +167,7 @@ export class RelaySession {
   /** Accumule les touches du clavier; '#' valide, '*' efface. */
   private async onDtmf(digit: string): Promise<void> {
     if (!digit) return;
+    this.clearIdle();
     if (digit === '#') {
       const num = this.dtmfBuffer;
       this.dtmfBuffer = '';
@@ -237,6 +247,7 @@ export class RelaySession {
         );
         if (toolUses.length === 0) {
           this.finishSpeaking();
+          this.armIdle();
           return;
         }
 
@@ -275,6 +286,7 @@ export class RelaySession {
   }
 
   private async executeControl(control: Exclude<ToolControl, { kind: 'language' }>): Promise<void> {
+    this.clearIdle();
     await this.logCallOnce();
     const handoff =
       control.kind === 'transfer'
@@ -293,9 +305,49 @@ export class RelaySession {
   async onClose(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.clearIdle();
     this.currentAbort?.abort();
     await this.logCallOnce();
     log('relay', `Session fermee ${this.callSid}`);
+  }
+
+  // -------- gestion du silence --------
+
+  private clearIdle(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = undefined;
+    }
+  }
+
+  private armIdle(): void {
+    this.clearIdle();
+    if (this.closed) return;
+    this.idleTimer = setTimeout(() => {
+      void this.onIdle();
+    }, RelaySession.IDLE_MS);
+  }
+
+  private async onIdle(): Promise<void> {
+    this.idleTimer = undefined;
+    if (this.closed || this.busy) return;
+    this.idleStrikes += 1;
+    if (this.idleStrikes >= 2) {
+      this.send({
+        type: 'text',
+        token: 'Je vais vous laisser pour l instant. N hesitez pas a rappeler. Au revoir.',
+        last: true,
+      });
+      await this.logCallOnce();
+      this.send({ type: 'end', handoffData: JSON.stringify({ action: 'hangup', reason: 'silence' }) });
+      return;
+    }
+    this.send({
+      type: 'text',
+      token: 'Etes-vous toujours la? Je peux prendre un message si vous preferez.',
+      last: true,
+    });
+    this.armIdle();
   }
 
   private async logCallOnce(): Promise<void> {

@@ -19,17 +19,26 @@ function attr(name: string, value: string | boolean | undefined): string {
 /** Message d'accueil parle automatiquement par ConversationRelay. */
 export function welcomeGreeting(): string {
   const { name, assistant } = config.business;
-  return `Bonjour, ici ${assistant}, l'assistant virtuel de ${name}. Aimeriez-vous parler a un membre de l'equipe?`;
+  return `Bonjour, ici ${assistant}, l'assistant virtuel de ${name}. Comment puis-je vous aider aujourd'hui?`;
+}
+
+/** Accueil quand on reprend la ligne apres un transfert sans reponse. */
+export function messageGreeting(): string {
+  return `Desole, je n'ai pas pu joindre la personne pour l'instant. Puis-je prendre un message pour que l'equipe vous rappelle?`;
 }
 
 /** TwiML qui connecte l'appel au websocket ConversationRelay. */
-export function connectTwiml(wssUrl: string, actionUrl: string): string {
+export function connectTwiml(
+  wssUrl: string,
+  actionUrl: string,
+  opts?: { greeting?: string },
+): string {
   const r = config.relay;
   // Fournisseur/voix actifs (primaire ElevenLabs, ou repli Amazon si en echec).
   const tts = activeTts();
   const relayAttrs =
     attr('url', wssUrl) +
-    attr('welcomeGreeting', welcomeGreeting()) +
+    attr('welcomeGreeting', opts?.greeting ?? welcomeGreeting()) +
     attr('language', r.language) +
     attr('ttsProvider', tts.provider) +
     attr('voice', tts.voice) +
@@ -62,13 +71,16 @@ export function connectTwiml(wssUrl: string, actionUrl: string): string {
   ].join('\n');
 }
 
-/** TwiML de transfert vers une personne de l'equipe. */
-export function transferTwiml(to: string): string {
+/**
+ * TwiML de transfert vers une personne de l'equipe. Sonne `timeout` secondes;
+ * `actionUrl` est appele avec DialCallStatus pour gerer le cas sans reponse.
+ */
+export function transferTwiml(to: string, actionUrl: string, timeout = 20): string {
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<Response>',
     `  <Say language="${config.relay.language}">Je vous mets en relation, un instant.</Say>`,
-    `  <Dial>${escapeXml(to)}</Dial>`,
+    `  <Dial timeout="${timeout}"${attr('action', actionUrl)} answerOnBridge="true">${escapeXml(to)}</Dial>`,
     '</Response>',
   ].join('\n');
 }

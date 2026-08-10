@@ -5,7 +5,7 @@ import twilio from 'twilio';
 
 import { config } from './config.js';
 import { RelaySession } from './relay/session.js';
-import { connectTwiml, hangupTwiml, transferTwiml } from './twiml.js';
+import { connectTwiml, hangupTwiml, messageGreeting, transferTwiml } from './twiml.js';
 import { error, log, warn } from './util/logger.js';
 
 const app = express();
@@ -62,11 +62,31 @@ app.post('/twiml/action', (req, res) => {
     warn('http', 'HandoffData illisible');
   }
   if (handoff.action === 'transfer' && handoff.to) {
+    const base = publicBase(req);
     log('http', `Transfert vers ${handoff.to}`);
-    res.type('text/xml').send(transferTwiml(handoff.to));
+    res.type('text/xml').send(transferTwiml(handoff.to, `${base}/twiml/dial-status`));
     return;
   }
   res.type('text/xml').send(hangupTwiml('Merci de votre appel. Au revoir.'));
+});
+
+// Resultat du transfert: si personne n'a repondu, Gio reprend la ligne pour
+// prendre un message; sinon on raccroche.
+app.post('/twiml/dial-status', (req, res) => {
+  if (!twilioSignatureValid(req)) {
+    res.status(403).type('text/xml').send(hangupTwiml());
+    return;
+  }
+  const status = (req.body?.DialCallStatus as string) ?? '';
+  log('http', `Resultat du transfert: ${status}`);
+  if (status === 'completed' || status === 'answered') {
+    res.type('text/xml').send(hangupTwiml());
+    return;
+  }
+  const base = publicBase(req);
+  const wssUrl = `${base.replace(/^http/, 'ws')}/relay?mode=message`;
+  const actionUrl = `${base}/twiml/action`;
+  res.type('text/xml').send(connectTwiml(wssUrl, actionUrl, { greeting: messageGreeting() }));
 });
 
 const server = createServer(app);
@@ -83,8 +103,9 @@ server.on('upgrade', (request, socket, head) => {
   });
 });
 
-wss.on('connection', (ws) => {
-  const session = new RelaySession(ws);
+wss.on('connection', (ws, request) => {
+  const mode = new URL(request?.url ?? '', 'http://localhost').searchParams.get('mode');
+  const session = new RelaySession(ws, { mode: mode === 'message' ? 'message' : undefined });
   ws.on('message', (data) => {
     void session.onMessage(data.toString());
   });
