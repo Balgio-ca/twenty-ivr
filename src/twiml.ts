@@ -37,7 +37,7 @@ export function voicemailDoneTwiml(): string {
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<Response>',
-    `  <Say language="${config.relay.language}">Merci, un membre de l'équipe vous contactera. Au revoir.</Say>`,
+    `  <Say language="${config.relay.language}">Merci, un membre de notre équipe vous contactera. Au revoir.</Say>`,
     '  <Hangup/>',
     '</Response>',
   ].join('\n');

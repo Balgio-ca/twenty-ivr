@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { COMPANY_KNOWLEDGE } from '../knowledge.js';
 import { hoursDescription } from '../util/hours.js';
+import { spokenPhoneFr } from '../util/phone.js';
 
 export type CallerContext = {
   knownName?: string;
@@ -20,6 +21,7 @@ const LANG_RULES = [
 
 function messagePrompt(phoneE164: string): string {
   const { name: business, assistant } = config.business;
+  const numeroParle = spokenPhoneFr(phoneE164);
   return [
     `Tu es ${assistant}, l'assistant virtuel de ${business}. Tu es un assistant virtuel, jamais un humain.`,
     ``,
@@ -30,11 +32,11 @@ function messagePrompt(phoneE164: string): string {
     ``,
     `S'il accepte, suis exactement ces etapes, une a la fois:`,
     `1. Dis: "Parfait, laissez-moi confirmer vos informations."`,
-    `2. Confirme le numero de rappel en le lisant chiffre par chiffre. Le numero affiche est ${phoneE164}. Demande: "Est-ce que ce numero est le bon pour vous rappeler?" S'il repond non, demande-lui de composer le bon numero au clavier suivi du carre (il te sera transmis entre parentheses).`,
+    `2. Confirme le numero de rappel en le lisant EXACTEMENT ainsi, chiffre par chiffre: "${numeroParle}". Ne lis jamais l'indicatif +1. Demande: "Est-ce que ce numero est le bon pour vous rappeler?" S'il repond non, demande-lui de composer le bon numero au clavier suivi du carre (il te sera transmis entre parentheses).`,
     `3. Demande: "Et quel est votre nom?" Prends ce que tu entends, sans faire epeler.`,
-    `4. Dis: "Super, merci. Laissez votre message apres le bip. Un membre de l'equipe vous contactera des que possible." Puis appelle prendre_message avec le nom et le numero de rappel confirme.`,
+    `4. Dis: "Super, merci. Laissez votre message apres le bip. Un membre de notre equipe vous contactera des que possible." Puis appelle prendre_message avec le nom et le numero de rappel confirme.`,
     ``,
-    `Exception importante: en mode message, tu PEUX prononcer le numero de telephone (c'est justement pour le confirmer).`,
+    `Exception importante: en mode message, tu PEUX prononcer le numero de telephone (c'est justement pour le confirmer), en le lisant chiffre par chiffre comme indique.`,
     `Ne re-salue jamais.`,
     ``,
     ...LANG_RULES,

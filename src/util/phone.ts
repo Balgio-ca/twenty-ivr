@@ -39,3 +39,16 @@ export function splitPhone(raw: string, defaultCountry = 'CA'): SplitPhone {
 export function spokenDigits(national: string): string {
   return national.split('').join(' ');
 }
+
+/**
+ * Formate un numero pour la lecture a voix haute en francais quebecois:
+ * regroupe un numero a 10 chiffres en 3-3-4 et espace chaque chiffre,
+ * ex "+14389288488" -> "4 3 8, 9 2 8, 8 4 8 8". Retire l'indicatif (+1).
+ */
+export function spokenPhoneFr(raw: string, defaultCountry = 'CA'): string {
+  const { national } = splitPhone(raw, defaultCountry);
+  const d = national.replace(/\D/g, '');
+  const groups =
+    d.length === 10 ? [d.slice(0, 3), d.slice(3, 6), d.slice(6, 10)] : [d];
+  return groups.map((g) => g.split('').join(' ')).join(', ');
+}
