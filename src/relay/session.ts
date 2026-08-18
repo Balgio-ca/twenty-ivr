@@ -13,6 +13,7 @@ import {
   isActiveClient,
 } from '../twenty/people.js';
 import { createNoteOnPerson, logCall } from '../twenty/records.js';
+import { startCallRecording } from '../sms.js';
 import { humanAvailable } from '../util/hours.js';
 import { looksLikeTtsError, markPrimaryTtsDown } from '../tts-health.js';
 import { error, log, warn } from '../util/logger.js';
@@ -110,6 +111,12 @@ export class RelaySession {
     this.startedAt = new Date().toISOString();
     log('relay', `Appel ${callSid} de ${from} vers ${to}${this.mode ? ` [${this.mode}]` : ''}`);
     log('relay', `setup params=${JSON.stringify(msg.customParameters ?? {})}`);
+
+    // Enregistrement: on le demarre ici (media etabli) et une seule fois par
+    // appel (pas sur la reconnexion en mode message, meme CallSid).
+    if (config.recording.enabled && !this.mode && config.publicBaseUrl) {
+      void startCallRecording(callSid, `${config.publicBaseUrl}/twiml/recording-status`);
+    }
 
     try {
       const person = await findPersonByPhone(from);

@@ -38,19 +38,28 @@ export async function logCall(input: {
 }
 
 /** Attache l'URL d'enregistrement a l'appel (retrouve par twilioCallSid). */
-export async function attachRecording(callSid: string, url: string): Promise<void> {
-  if (!twenty.enabled || !callSid || !url) return;
+export async function attachRecording(
+  callSid: string,
+  url: string,
+): Promise<{ name?: string; phoneNumber?: string; personId?: string } | null> {
+  if (!twenty.enabled || !callSid || !url) return null;
   const filter = encodeURIComponent(`twilioCallSid[eq]:${callSid}`);
-  const calls = await twenty.getList<{ id: string }>(`/calls?filter=${filter}&limit=1&depth=0`);
+  const calls = await twenty.getList<{
+    id: string;
+    name?: string;
+    phoneNumber?: string;
+    personId?: string;
+  }>(`/calls?filter=${filter}&limit=1&depth=0`);
   const call = calls[0];
   if (!call) {
     log('twenty', `Aucun appel trouve pour ${callSid} (enregistrement non attache)`);
-    return;
+    return null;
   }
   await twenty.patch(`/calls/${call.id}`, {
     recordingUrl: { primaryLinkUrl: url, primaryLinkLabel: 'Enregistrement' },
   });
   log('twenty', `Enregistrement attache a l'appel ${call.id}`);
+  return { name: call.name, phoneNumber: call.phoneNumber, personId: call.personId };
 }
 
 /** Cree une opportunite pour un nouveau lead (stage NOUVEAU). */

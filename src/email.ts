@@ -64,3 +64,32 @@ export async function sendMessageEmail(input: MessageEmail): Promise<boolean> {
     return false;
   }
 }
+
+/** Envoie l'enregistrement de l'appel en piece jointe (mp3). */
+export async function sendRecordingEmail(input: {
+  subject: string;
+  text: string;
+  filename: string;
+  content: Buffer;
+}): Promise<boolean> {
+  const tx = getTransporter();
+  if (!tx) {
+    warn('email', 'SMTP non configure: enregistrement non envoye.');
+    return false;
+  }
+  const from = config.email.from || config.email.smtpUser || 'gio@balgio.ca';
+  try {
+    await tx.sendMail({
+      from,
+      to: config.email.to,
+      subject: input.subject,
+      text: input.text,
+      attachments: [{ filename: input.filename, content: input.content, contentType: 'audio/mpeg' }],
+    });
+    log('email', `Enregistrement envoye a ${config.email.to}`);
+    return true;
+  } catch (err) {
+    warn('email', 'Echec envoi enregistrement', err);
+    return false;
+  }
+}

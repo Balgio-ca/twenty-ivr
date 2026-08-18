@@ -5,8 +5,9 @@ import twilio from 'twilio';
 
 import { config } from './config.js';
 import { RelaySession } from './relay/session.js';
-import { startCallRecording } from './sms.js';
+import { downloadRecording } from './sms.js';
 import { attachRecording } from './twenty/records.js';
+import { sendRecordingEmail } from './email.js';
 import {
   acceptTwiml,
   connectTwiml,
@@ -69,13 +70,8 @@ app.post('/twiml/voice', (req, res) => {
   const actionUrl = `${base}/twiml/action`;
   log('http', `Nouvel appel -> ConversationRelay ${wssUrl}`);
   res.type('text/xml').send(connectTwiml(wssUrl, actionUrl));
-
-  // Enregistrement de l'appel (en arriere-plan). L'avis de consentement est
-  // dans le message d'accueil.
-  const callSid = (req.body?.CallSid as string) ?? '';
-  if (config.recording.enabled && callSid) {
-    void startCallRecording(callSid, `${base}/twiml/recording-status`);
-  }
+  // L'enregistrement demarre a la connexion du websocket (media etabli), pas
+  // ici (sinon Twilio renvoie 21220 "not eligible"). Voir RelaySession.
 });
 
 // Twilio notifie quand l'enregistrement est pret: on l'attache a l'appel Twenty.
@@ -86,9 +82,31 @@ app.post('/twiml/recording-status', (req, res) => {
   }
   const callSid = (req.body?.CallSid as string) ?? '';
   const url = (req.body?.RecordingUrl as string) ?? '';
+  const duration = (req.body?.RecordingDuration as string) ?? '?';
   log('http', `Enregistrement pret pour ${callSid}`);
-  if (callSid && url) void attachRecording(callSid, url);
   res.type('text/xml').send('<Response/>');
+  if (!callSid || !url) return;
+
+  // En arriere-plan: attacher au CRM + envoyer le mp3 par courriel.
+  void (async () => {
+    const info = await attachRecording(callSid, url).catch(() => null);
+    const audio = await downloadRecording(url);
+    if (!audio) return;
+    const label = info?.name || info?.phoneNumber || callSid;
+    await sendRecordingEmail({
+      subject: `Enregistrement d'appel - ${label}`,
+      text: [
+        `Enregistrement de l'appel entrant.`,
+        info?.phoneNumber ? `Numero: ${info.phoneNumber}` : '',
+        `Duree: ${duration} secondes.`,
+        `Lien Twilio: ${url}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      filename: `appel-${callSid}.mp3`,
+      content: audio,
+    });
+  })();
 });
 
 // Action de fin de session ConversationRelay (transfert ou raccroché).

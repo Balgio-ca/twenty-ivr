@@ -64,3 +64,25 @@ export async function startCallRecording(callSid: string, statusCallbackUrl: str
     warn('rec', 'Erreur demarrage enregistrement', err);
   }
 }
+
+/** Telecharge le mp3 d'un enregistrement Twilio (avec authentification). */
+export async function downloadRecording(recordingUrl: string): Promise<Buffer | null> {
+  const { accountSid, authToken } = config.twilio;
+  if (!accountSid || !authToken || !recordingUrl) return null;
+  try {
+    const res = await fetch(`${recordingUrl}.mp3`, {
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      warn('rec', `Telechargement enregistrement ${res.status}`);
+      return null;
+    }
+    return Buffer.from(await res.arrayBuffer());
+  } catch (err) {
+    warn('rec', 'Erreur telechargement enregistrement', err);
+    return null;
+  }
+}
