@@ -107,7 +107,9 @@ export const config = {
     // Bascule vers l'anglais si l'appelant parle anglais.
     bilingual: bool('CR_BILINGUAL', true),
     languageEn: opt('CR_LANGUAGE_EN', 'en-US'),
-    voiceEn: opt('CR_VOICE_EN') || opt('CR_VOICE'),
+    // Voix anglaise: si non definie, on laisse Twilio choisir la voix en-US par
+    // defaut (ne PAS reutiliser la voix fr-CA, ce qui rend le TwiML invalide).
+    voiceEn: opt('CR_VOICE_EN'),
     // Repli TTS si le fournisseur primaire echoue (ex: ElevenLabs a capacite).
     // Les appels suivants utilisent ce fournisseur pendant le refroidissement.
     fallbackProvider: opt('CR_TTS_FALLBACK_PROVIDER', 'Amazon'),

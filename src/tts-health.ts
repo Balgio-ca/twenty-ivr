@@ -36,7 +36,7 @@ export function activeTts(): { provider: string; voice: string; voiceEn: string;
   return {
     provider: config.relay.fallbackProvider,
     voice: config.relay.fallbackVoice,
-    voiceEn: config.relay.fallbackVoice,
+    voiceEn: config.relay.voiceEn,
     fallback: true,
   };
 }
