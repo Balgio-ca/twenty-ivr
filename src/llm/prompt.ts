@@ -18,25 +18,31 @@ const LANG_RULES = [
   `Langage (tu parles a voix haute): pas d'emoji; ne commence pas une phrase par "Et"; evite les phrases de un ou deux mots; n'utilise pas le mot "pis".`,
 ];
 
-function messagePrompt(): string {
+function messagePrompt(phoneE164: string): string {
   const { name: business, assistant } = config.business;
   return [
     `Tu es ${assistant}, l'assistant virtuel de ${business}. Tu es un assistant virtuel, jamais un humain.`,
     ``,
-    `Le transfert vers l'equipe n'a pas abouti (personne n'a repondu). Le message d'accueil s'est deja excuse et a deja demande la raison de l'appel.`,
-    `Ton seul objectif: prendre le message vite et bien, puis raccrocher. Sois tres bref.`,
+    `La personne souhaitee n'est pas disponible. Le message d'accueil vient de demander a l'appelant s'il veut laisser un message.`,
+    `Ton objectif: confirmer ses coordonnees, puis le passer a la boite vocale pour qu'il enregistre son message. Sois bref, une phrase a la fois.`,
     ``,
-    `- Des que tu as la raison, prends le message: appelle prendre_message avec la raison et, comme numero de rappel, le numero affiche de l'appelant. Ne redemande pas le numero, sauf s'il veut etre rappele a un autre numero (dans ce cas, qu'il le compose au clavier suivi du carre).`,
-    `- Ne demande pas le nom separement; s'il le donne, tant mieux. Ne fais jamais epeler.`,
-    `- Ensuite, une seule courte phrase de confirmation, par exemple "Parfait, je transmets ca a l'equipe et on vous rappelle rapidement", puis appelle terminer_appel.`,
-    `- Ne re-salue jamais. Ne remercie qu'a la toute fin. Pas de questions superflues.`,
+    `S'il NE veut PAS laisser de message: dis "Parfait, merci de votre appel. Au revoir." et appelle terminer_appel.`,
+    ``,
+    `S'il accepte, suis exactement ces etapes, une a la fois:`,
+    `1. Dis: "Parfait, laissez-moi confirmer vos informations."`,
+    `2. Confirme le numero de rappel en le lisant chiffre par chiffre. Le numero affiche est ${phoneE164}. Demande: "Est-ce que ce numero est le bon pour vous rappeler?" S'il repond non, demande-lui de composer le bon numero au clavier suivi du carre (il te sera transmis entre parentheses).`,
+    `3. Demande: "Et quel est votre nom?" Prends ce que tu entends, sans faire epeler.`,
+    `4. Dis: "Super, merci. Laissez votre message apres le bip. Un membre de l'equipe vous contactera des que possible." Puis appelle prendre_message avec le nom et le numero de rappel confirme.`,
+    ``,
+    `Exception importante: en mode message, tu PEUX prononcer le numero de telephone (c'est justement pour le confirmer).`,
+    `Ne re-salue jamais.`,
     ``,
     ...LANG_RULES,
   ].join('\n');
 }
 
 export function buildSystemPrompt(ctx: CallerContext): string {
-  if (ctx.mode === 'message') return messagePrompt();
+  if (ctx.mode === 'message') return messagePrompt(ctx.phoneE164);
 
   const { name: business, assistant } = config.business;
 

@@ -1,6 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
-import { sendMessageEmail } from '../email.js';
 import { sendSms } from '../sms.js';
 import { error, log } from '../util/logger.js';
 import { isBusinessOpen } from '../util/hours.js';
@@ -10,6 +9,7 @@ import { createFollowUpTask, createOpportunity } from '../twenty/records.js';
 export type ToolControl =
   | { kind: 'transfer'; to: string; reason: string; who?: string; caller?: string }
   | { kind: 'hangup'; reason: string }
+  | { kind: 'voicemail' }
   | { kind: 'language'; lang: 'fr' | 'en' };
 
 export type ToolOutcome = {
@@ -99,21 +99,17 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'prendre_message',
     description:
-      "Enregistre un message, l'envoie par courriel et alerte l'equipe par SMS. A utiliser hors des heures d'ouverture, ou si l'appelant prefere laisser un message. Demande la raison et un numero de rappel; le nom et l'entreprise sont facultatifs.",
+      "Passe l'appelant a la boite vocale pour qu'il enregistre son message. AVANT d'appeler cet outil: demande son nom, puis confirme le numero de rappel (par defaut le numero affiche; s'il en veut un autre, qu'il le compose au clavier suivi du carre). Dis ensuite une courte phrase comme 'Parfait, laissez votre message apres la tonalite', puis appelle cet outil.",
     input_schema: {
       type: 'object',
       properties: {
-        raison: { type: 'string', description: "Raison de l'appel." },
+        nom: { type: 'string', description: "Nom de l'appelant." },
         numero_rappel: {
           type: 'string',
-          description: 'Numero de rappel. Laisse vide pour utiliser le numero affiche.',
+          description: 'Numero de rappel confirme. Laisse vide pour utiliser le numero affiche.',
         },
-        nom: { type: 'string', description: "Nom de l'appelant (facultatif)." },
-        entreprise: { type: 'string', description: "Entreprise (facultatif)." },
-        client_existant: { type: 'boolean', description: 'Vrai si deja client (si connu).' },
-        message: { type: 'string', description: 'Details additionnels (facultatif).' },
       },
-      required: ['raison'],
+      required: [],
     },
   },
   {
@@ -202,56 +198,46 @@ async function handlePrendreMessage(
   args: Record<string, unknown>,
   session: ToolSession,
 ): Promise<ToolOutcome> {
-  const raison = String(args.raison ?? '').trim();
   const nom = String(args.nom ?? '').trim();
-  const entreprise = String(args.entreprise ?? '').trim();
   const numero = String(args.numero_rappel ?? '').trim() || session.phoneE164;
-  const message = String(args.message ?? '').trim() || raison;
-  const existing = clientFlag(args, session);
-  const afterHours = !isBusinessOpen();
+  const existing = session.existingClient;
 
   if (nom) {
     const person = await ensurePerson(numero, nom);
     if (person) session.personId = person.id;
   }
-  ensureOpportunityForNewLead(session, nom, entreprise);
+  ensureOpportunityForNewLead(session, nom, '');
 
   const statut = existing ? 'Client existant' : 'Nouveau contact';
-  const body = [
-    `Message telephonique pris par ${config.business.assistant}.`,
-    ``,
-    `Appelant: ${label(nom, entreprise)}`,
-    `Statut: ${statut}`,
-    `Numero de rappel: ${numero}`,
-    `Raison: ${raison || 'non precisee'}`,
-    ``,
-    message,
-  ].join('\n');
-
-  // Ecriture CRM et alertes en arriere-plan: ne bloquent jamais la fin d'appel.
   const target = routeTo(session, existing);
-  const sms = `Message Balgio - ${label(nom, entreprise)}. ${statut}. Raison: ${raison || 'non precisee'}. Rappeler au ${numero}.`;
+
+  // Coordonnees + alerte SMS en arriere-plan. Le contenu du message (audio)
+  // sera joint plus tard, une fois l'enregistrement de la boite vocale termine.
   void createFollowUpTask({
-    title: `Message de ${label(nom, entreprise)} - ${raison || 'appel'}`,
-    body,
+    title: `Message vocal de ${nom || 'appelant'}`,
+    body: [
+      `Message vocal recu par ${config.business.assistant}.`,
+      `Nom: ${nom || 'non fourni'}`,
+      `Statut: ${statut}`,
+      `Rappeler au: ${numero}`,
+      ``,
+      `L'enregistrement audio est joint au courriel et a la fiche de l'appel.`,
+    ].join('\n'),
     personId: session.personId,
     assigneeId: session.ownerMemberId || config.business.defaultAssigneeId,
   });
-  void sendSms(target, sms);
-  void sendMessageEmail({
-    nom: label(nom, entreprise),
-    numeroRappel: numero,
-    sujet: raison,
-    message,
-    afterHours,
-  });
+  void sendSms(
+    target,
+    `Message vocal Balgio - ${nom || 'appelant'}. ${statut}. Rappeler au ${numero}. Enregistrement par courriel.`,
+  );
 
-  session.callSummary = `Message (${statut}). ${label(nom, entreprise)}. Raison: ${raison}. Rappel: ${numero}.`;
+  session.callSummary = `Message vocal. ${nom || 'appelant'}. Rappel: ${numero}.`;
   session.callOutcome = 'CONNECTED';
 
   return {
     result:
-      "Message enregistre, l'equipe est alertee par SMS et courriel. Confirme brievement en une phrase, puis termine l'appel avec terminer_appel.",
+      "Coordonnees notees. Dis une courte phrase invitant a laisser le message apres la tonalite, puis c'est tout: l'enregistrement demarre.",
+    control: { kind: 'voicemail' },
   };
 }
 

@@ -14,6 +14,8 @@ import {
   hangupTwiml,
   messageGreeting,
   transferTwiml,
+  voicemailDoneTwiml,
+  voicemailRecordTwiml,
   whisperTwiml,
 } from './twiml.js';
 import { error, log, warn } from './util/logger.js';
@@ -136,7 +138,25 @@ app.post('/twiml/action', (req, res) => {
     res.type('text/xml').send(transferTwiml(handoff.to, dialAction, whisper));
     return;
   }
+  if (handoff.action === 'voicemail') {
+    const base = publicBase(req);
+    log('http', 'Boite vocale: enregistrement du message');
+    res.type('text/xml').send(
+      voicemailRecordTwiml(`${base}/twiml/recording-status`, `${base}/twiml/vm-done`),
+    );
+    return;
+  }
   res.type('text/xml').send(hangupTwiml('Merci de votre appel. Au revoir.'));
+});
+
+// Fin de la boite vocale (apres l'enregistrement du message).
+app.post('/twiml/vm-done', (req, res) => {
+  if (!twilioSignatureValid(req)) {
+    res.status(403).type('text/xml').send(hangupTwiml());
+    return;
+  }
+  log('http', 'Fin de la boite vocale');
+  res.type('text/xml').send(voicemailDoneTwiml());
 });
 
 // Resultat du transfert: si personne n'a repondu, Gio reprend la ligne pour

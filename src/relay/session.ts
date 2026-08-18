@@ -13,7 +13,6 @@ import {
   isActiveClient,
 } from '../twenty/people.js';
 import { createNoteOnPerson, logCall } from '../twenty/records.js';
-import { startCallRecording } from '../sms.js';
 import { humanAvailable } from '../util/hours.js';
 import { looksLikeTtsError, markPrimaryTtsDown } from '../tts-health.js';
 import { error, log, warn } from '../util/logger.js';
@@ -111,12 +110,6 @@ export class RelaySession {
     this.startedAt = new Date().toISOString();
     log('relay', `Appel ${callSid} de ${from} vers ${to}${this.mode ? ` [${this.mode}]` : ''}`);
     log('relay', `setup params=${JSON.stringify(msg.customParameters ?? {})}`);
-
-    // Enregistrement: on le demarre ici (media etabli) et une seule fois par
-    // appel (pas sur la reconnexion en mode message, meme CallSid).
-    if (config.recording.enabled && !this.mode && config.publicBaseUrl) {
-      void startCallRecording(callSid, `${config.publicBaseUrl}/twiml/recording-status`);
-    }
 
     try {
       const person = await findPersonByPhone(from);
@@ -326,16 +319,20 @@ export class RelaySession {
 
   private async executeControl(control: Exclude<ToolControl, { kind: 'language' }>): Promise<void> {
     this.clearIdle();
-    const handoff =
-      control.kind === 'transfer'
-        ? {
-            action: 'transfer',
-            to: control.to,
-            reason: control.reason,
-            who: control.who,
-            caller: control.caller,
-          }
-        : { action: 'hangup', reason: control.reason };
+    let handoff: Record<string, unknown>;
+    if (control.kind === 'transfer') {
+      handoff = {
+        action: 'transfer',
+        to: control.to,
+        reason: control.reason,
+        who: control.who,
+        caller: control.caller,
+      };
+    } else if (control.kind === 'voicemail') {
+      handoff = { action: 'voicemail' };
+    } else {
+      handoff = { action: 'hangup', reason: control.reason };
+    }
     // On envoie 'end' tout de suite (transfert/raccrochage snappy); la
     // journalisation CRM se fait en arriere-plan pour ne pas creer de temps mort.
     this.send({ type: 'end', handoffData: JSON.stringify(handoff) });

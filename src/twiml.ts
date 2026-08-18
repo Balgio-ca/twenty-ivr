@@ -19,14 +19,34 @@ function attr(name: string, value: string | boolean | undefined): string {
 /** Message d'accueil parle automatiquement par ConversationRelay. */
 export function welcomeGreeting(): string {
   const { name, assistant } = config.business;
-  const notice = config.recording.enabled ? ` ${config.recording.notice}` : '';
-  return `Bonjour, ici ${assistant}, l'assistant virtuel de ${name}.${notice} Comment puis-je vous aider aujourd'hui ?`;
+  return `Bonjour, ici ${assistant}, l'assistant virtuel de ${name}. Comment puis-je vous aider aujourd'hui ?`;
+}
+
+/** Boite vocale: bip puis enregistrement du message uniquement. */
+export function voicemailRecordTwiml(recordingStatusUrl: string, doneUrl: string): string {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Response>',
+    `  <Record playBeep="true" maxLength="120" timeout="5" finishOnKey="#" recordingStatusCallbackEvent="completed"${attr('recordingStatusCallback', recordingStatusUrl)}${attr('action', doneUrl)} />`,
+    '</Response>',
+  ].join('\n');
+}
+
+/** Fin de la boite vocale. */
+export function voicemailDoneTwiml(): string {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Response>',
+    `  <Say language="${config.relay.language}">Merci, un membre de l'équipe vous contactera. Au revoir.</Say>`,
+    '  <Hangup/>',
+    '</Response>',
+  ].join('\n');
 }
 
 /** Accueil quand on reprend la ligne apres un transfert sans reponse. */
 export function messageGreeting(who?: string): string {
   const nom = who && who.trim() ? who.trim() : 'la personne';
-  return `Désolé, il semble que ${nom} ne soit pas disponible pour le moment. Je peux prendre un message et nous vous rappellerons rapidement. Quelle est la raison de votre appel?`;
+  return `Désolé, il semble que ${nom} ne soit pas disponible pour le moment. Aimeriez-vous laisser un message?`;
 }
 
 /** TwiML qui connecte l'appel au websocket ConversationRelay. */
